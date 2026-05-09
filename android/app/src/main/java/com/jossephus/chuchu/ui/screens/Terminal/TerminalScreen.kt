@@ -8,14 +8,14 @@ import android.view.inputmethod.InputMethodManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -40,7 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.shadow
+
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -130,8 +130,8 @@ private fun TerminalCustomActionsFab(
     ) {
         AnimatedVisibility(
             visible = expanded,
-            enter = fadeIn() + scaleIn(),
-            exit = fadeOut() + scaleOut(),
+            enter = fadeIn(),
+            exit = fadeOut(),
         ) {
             Column(
                 horizontalAlignment = Alignment.End,
@@ -150,6 +150,7 @@ private fun TerminalCustomActionsFab(
                                 }
                             },
                             variant = ChuButtonVariant.Outlined,
+                            bracketed = true,
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                         ) {
                             ChuText(group.keyLabel, style = typography.label)
@@ -164,6 +165,7 @@ private fun TerminalCustomActionsFab(
                                 selectedGroupKey = null
                             },
                             variant = ChuButtonVariant.Outlined,
+                            bracketed = true,
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                         ) {
                             ChuText(action.label, style = typography.label)
@@ -172,6 +174,8 @@ private fun TerminalCustomActionsFab(
                     ChuButton(
                         onClick = { selectedGroupKey = null },
                         variant = ChuButtonVariant.Ghost,
+                        bracketed = true,
+                        borderColor = colors.textMuted,
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                     ) {
                         ChuText("<", style = typography.label, color = colors.textMuted)
@@ -180,24 +184,24 @@ private fun TerminalCustomActionsFab(
             }
         }
 
-        Box(
-            modifier = Modifier
-                .shadow(6.dp, CircleShape)
-                .clip(CircleShape)
-                .background(colors.accent)
-                .clickable {
-                    expanded = !expanded
-                    if (!expanded) {
-                        selectedGroupKey = null
-                    }
+        // TUI-style action toggle — square bracketed button instead of a
+        // circular Material FAB. Reads like a macro/quick-key trigger.
+        ChuButton(
+            onClick = {
+                expanded = !expanded
+                if (!expanded) {
+                    selectedGroupKey = null
                 }
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            contentAlignment = Alignment.Center,
+            },
+            variant = if (expanded) ChuButtonVariant.Ghost else ChuButtonVariant.Filled,
+            bracketed = true,
+            borderColor = if (expanded) colors.textMuted else null,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         ) {
             ChuText(
                 if (expanded) "x" else "+",
                 style = typography.label,
-                color = colors.onAccent,
+                color = if (expanded) colors.textMuted else colors.onAccent,
             )
         }
     }
@@ -538,8 +542,8 @@ fun TerminalScreen(
                             Row(
                                 modifier = Modifier
                                     .offset(x = menuOffsetX, y = menuOffsetY)
-                                    .shadow(4.dp, shape = RoundedCornerShape(8.dp))
-                                    .background(colors.background, shape = RoundedCornerShape(8.dp))
+                                    .background(colors.background)
+                                    .border(1.dp, colors.border)
                                     .padding(horizontal = 4.dp, vertical = 2.dp),
                                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -548,18 +552,22 @@ fun TerminalScreen(
                                     ChuButton(
                                         onClick = ::copySelection,
                                         variant = ChuButtonVariant.Ghost,
+                                        bracketed = true,
+                                        borderColor = colors.textMuted,
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                     ) {
-                                        ChuText("Copy", style = typography.label, color = colors.textPrimary)
+                                        ChuText("copy", style = typography.label, color = colors.textMuted)
                                     }
                                 }
                                 if (hasClipboardText) {
                                     ChuButton(
                                         onClick = { pasteClipboard() },
                                         variant = ChuButtonVariant.Ghost,
+                                        bracketed = true,
+                                        borderColor = colors.textMuted,
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                     ) {
-                                        ChuText("Paste", style = typography.label, color = colors.textPrimary)
+                                        ChuText("paste", style = typography.label, color = colors.textMuted)
                                     }
                                 }
                             }
