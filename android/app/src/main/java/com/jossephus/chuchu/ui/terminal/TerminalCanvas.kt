@@ -78,7 +78,7 @@ fun TerminalCanvas(
     val doubleTapSlopPx = remember(androidViewConfiguration) { androidViewConfiguration.scaledDoubleTapSlop.toFloat() }
     val typeface = remember {
         runCatching {
-            ResourcesCompat.getFont(context, R.font.jetbrains_mono_regular)
+            ResourcesCompat.getFont(context, R.font.fira_code_nerd_font_regular)
                 ?: Typeface.MONOSPACE
         }.getOrDefault(Typeface.MONOSPACE)
     }

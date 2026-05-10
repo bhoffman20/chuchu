@@ -22,9 +22,9 @@ data class ChuTypeScale(
 )
 
 private val MonoFamily = FontFamily(
-    Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
-    Font(R.font.jetbrains_mono_regular, FontWeight.Medium),
-    Font(R.font.jetbrains_mono_regular, FontWeight.SemiBold),
+    Font(R.font.fira_code_nerd_font_regular, FontWeight.Normal),
+    Font(R.font.fira_code_nerd_font_regular, FontWeight.Medium),
+    Font(R.font.fira_code_nerd_font_regular, FontWeight.SemiBold),
 )
 
 val ChuDefaultTypography: ChuTypeScale = ChuTypeScale(
