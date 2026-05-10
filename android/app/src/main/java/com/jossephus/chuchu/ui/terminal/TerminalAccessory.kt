@@ -70,6 +70,7 @@ enum class TerminalSpecialKey(
 ) {
     Escape("Esc", GhosttyKey.escape),
     Tab("Tab", GhosttyKey.tab),
+    Enter("Enter", GhosttyKey.enter),
     Up("↑", GhosttyKey.arrowUp),
     Down("↓", GhosttyKey.arrowDown),
     Left("←", GhosttyKey.arrowLeft),
@@ -148,6 +149,8 @@ object TerminalAccessoryDispatcher {
 object TerminalAccessoryLayoutStore {
     private val catalogItems: List<AccessoryKeyItem> = listOf(
         AccessoryKeyItem("tab", "Tab", AccessoryAction.SendSpecialKey(TerminalSpecialKey.Tab)),
+        AccessoryKeyItem("enter", TerminalSpecialKey.Enter.label, AccessoryAction.SendSpecialKey(TerminalSpecialKey.Enter)),
+        AccessoryKeyItem("space", "Space", AccessoryAction.SendText(" ")),
         AccessoryKeyItem("escape", "Esc", AccessoryAction.SendSpecialKey(TerminalSpecialKey.Escape)),
         AccessoryKeyItem("ctrl", "Ctrl", AccessoryAction.ToggleModifier(TerminalModifier.Ctrl)),
         AccessoryKeyItem("cmd", "Cmd", AccessoryAction.ToggleModifier(TerminalModifier.Cmd)),
@@ -191,6 +194,8 @@ object TerminalAccessoryLayoutStore {
         "down",
         "left",
         "right",
+        "enter",
+        "space",
     )
 
     fun defaultLayout(): List<AccessoryKeyItem> = resolveLayout(defaultLayoutIds)
