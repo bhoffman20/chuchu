@@ -160,6 +160,12 @@ class TerminalSessionRepository private constructor(
 
     fun respondToHostKey(accepted: Boolean) = engine.respondToHostKey(accepted)
 
+    suspend fun sftpListDirectory(path: String): List<String> = engine.sftpListDirectory(path)
+    suspend fun sftpRealpath(path: String): String = engine.sftpRealpath(path)
+    suspend fun sftpOpenWrite(path: String) = engine.sftpOpenWrite(path)
+    suspend fun sftpWriteChunk(data: ByteArray): Int = engine.sftpWriteChunk(data)
+    suspend fun sftpCloseWrite() = engine.sftpCloseWrite()
+
     companion object {
         @Volatile
         private var instance: TerminalSessionRepository? = null

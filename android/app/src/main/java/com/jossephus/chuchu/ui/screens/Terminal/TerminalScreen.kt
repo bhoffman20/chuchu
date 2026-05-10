@@ -3,8 +3,13 @@ package com.jossephus.chuchu.ui.screens.Terminal
 import android.content.ClipboardManager
 import android.content.ClipData
 import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.util.Log
 import android.widget.Toast
 import android.view.inputmethod.InputMethodManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -23,8 +28,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -35,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,7 +58,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jossephus.chuchu.data.db.AppDatabase
 import com.jossephus.chuchu.data.repository.HostRepository
@@ -78,6 +89,10 @@ import com.jossephus.chuchu.ui.terminal.CustomActionModifier
 import com.jossephus.chuchu.ui.terminal.decodeCustomActionValue
 import com.jossephus.chuchu.ui.terminal.modifierStateForCustomAction
 import com.jossephus.chuchu.ui.terminal.toGhosttyKey
+import com.jossephus.chuchu.ui.screens.Files.ConnectionTab
+import com.jossephus.chuchu.ui.screens.Files.UploadProgress
+import com.jossephus.chuchu.ui.screens.Files.FileBrowserScreen
+import com.jossephus.chuchu.ui.screens.Files.formatFileSize
 import com.jossephus.chuchu.data.repository.SettingsRepository
 import com.jossephus.chuchu.ui.theme.ChuColors
 import com.jossephus.chuchu.ui.theme.ChuTypography
@@ -216,6 +231,8 @@ fun TerminalScreen(
 ) {
     val sessionState by vm.sessionState.collectAsStateWithLifecycle()
     val connectForm by vm.connectForm.collectAsStateWithLifecycle()
+    val selectedTab by vm.selectedTab.collectAsStateWithLifecycle()
+    val fileBrowserState by vm.fileBrowserState.collectAsStateWithLifecycle()
     val hostKeyPrompt by vm.hostKeyPrompt.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
@@ -398,6 +415,7 @@ fun TerminalScreen(
                         context.getSystemService(ClipboardManager::class.java)
                     }
                     var hasClipboardText by remember { mutableStateOf(false) }
+                    val scope = rememberCoroutineScope()
                     LaunchedEffect(clipboard) {
                         fun check() {
                             hasClipboardText = try {
@@ -482,6 +500,77 @@ fun TerminalScreen(
                         selectionResetKey += 1
                     }
 
+                    val importFileLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.GetMultipleContents(),
+                    ) { uris: List<Uri> ->
+                        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+                        scope.launch(Dispatchers.IO) {
+                            var success = 0
+                            var failed = 0
+                            var lastError: String? = null
+                            val total = uris.size
+                            uris.forEachIndexed { index, uri ->
+                                val fileName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                                    val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                                    if (cursor.moveToFirst() && idx >= 0) cursor.getString(idx) else null
+                                } ?: uri.lastPathSegment ?: "uploaded_${index}"
+                                val fileSize = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                                    val idx = cursor.getColumnIndex(OpenableColumns.SIZE)
+                                    if (cursor.moveToFirst() && idx >= 0) cursor.getLong(idx) else 0L
+                                } ?: 0L
+                                try {
+                                    val stream = context.contentResolver.openInputStream(uri)
+                                        ?: throw IllegalStateException("Cannot open file")
+                                    stream.use { input ->
+                                        vm.beginUpload(fileName)
+                                        vm.setUploadProgress(UploadProgress(
+                                            fileName = fileName,
+                                            bytesWritten = 0,
+                                            totalBytes = fileSize,
+                                            fileIndex = index,
+                                            totalFiles = total,
+                                        ))
+                                        val buffer = ByteArray(65536)
+                                        var bytesWritten = 0L
+                                        var lastProgressBytes = 0L
+                                        var read: Int
+                                        while (input.read(buffer).also { read = it } != -1) {
+                                            vm.writeUploadChunk(buffer.copyOf(read))
+                                            bytesWritten += read
+                                            if (bytesWritten - lastProgressBytes >= 262144 || bytesWritten == fileSize) {
+                                                lastProgressBytes = bytesWritten
+                                                vm.setUploadProgress(UploadProgress(
+                                                    fileName = fileName,
+                                                    bytesWritten = bytesWritten,
+                                                    totalBytes = fileSize,
+                                                    fileIndex = index,
+                                                    totalFiles = total,
+                                                ))
+                                            }
+                                        }
+                                        vm.finishUpload()
+                                    }
+                                    success++
+                                } catch (e: Exception) {
+                                    failed++
+                                    lastError = e.message ?: e.javaClass.simpleName
+                                    Log.e("Upload", "Failed to upload $fileName", e)
+                                    runCatching { vm.finishUpload() }
+                                } finally {
+                                    vm.setUploadProgress(null)
+                                }
+                            }
+                            withContext(Dispatchers.Main) {
+                                val msg = when {
+                                    failed == 0 -> "Uploaded $success file(s)"
+                                    lastError != null -> "Uploaded $success, $failed failed: $lastError"
+                                    else -> "Uploaded $success, $failed failed"
+                                }
+                                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+
                     LaunchedEffect(Unit) {
                         requestInputFocus()
                         vm.onFocusChanged(true)
@@ -491,6 +580,22 @@ fun TerminalScreen(
                             .fillMaxSize()
                             .imePadding(),
                     ) {
+                    if (selectedTab == ConnectionTab.Files) {
+                        FileBrowserScreen(
+                            state = fileBrowserState,
+                            onGoUp = vm::goUpDirectory,
+                            onRefresh = vm::refreshFileBrowser,
+                            onSelectSort = vm::selectFileSort,
+                            onOpenPath = vm::openPath,
+                            onBackToTerminal = { vm.selectTab(ConnectionTab.Terminal) },
+                            onCopyPath = { path ->
+                                clipboard?.setPrimaryClip(ClipData.newPlainText("path", path))
+                                Toast.makeText(context, "Copied path", Toast.LENGTH_SHORT).show()
+                            },
+                            onImportFile = { importFileLauncher.launch("*/*") },
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
                     Box(
                         modifier = Modifier.weight(1f),
                     ) {
@@ -625,17 +730,26 @@ fun TerminalScreen(
                             )
                         }
                     }
+                    }
 
                     Spacer(modifier = Modifier.height(6.dp))
-                    KeyboardAccessoryBar(
-                        items = accessoryLayout,
-                        modifierState = modifierState,
-                        onAction = ::dispatchAccessoryAction,
-                        onSettings = onOpenSettings,
-                        modifier = Modifier.padding(bottom = 2.dp),
-                    )
+                    if (selectedTab == ConnectionTab.Terminal) {
+                        KeyboardAccessoryBar(
+                            items = accessoryLayout,
+                            modifierState = modifierState,
+                            onAction = ::dispatchAccessoryAction,
+                            onSettings = onOpenSettings,
+                            onOpenFiles = { vm.selectTab(ConnectionTab.Files) },
+                            modifier = Modifier.padding(bottom = 2.dp),
+                        )
+                    }
                 }
 
+                }
+
+                val uploadProgress = fileBrowserState.uploadProgress
+                if (uploadProgress != null) {
+                    UploadProgressDialog(progress = uploadProgress)
                 }
             } else {
                 Column(
@@ -653,3 +767,79 @@ fun TerminalScreen(
         }
     }
 }
+
+@Composable
+private fun UploadProgressDialog(progress: UploadProgress) {
+    val colors = ChuColors.current
+    val typography = ChuTypography.current
+    val barWidthDp = 240.dp
+    val barHeightDp = 12.dp
+    val filledWidth = if (progress.totalBytes > 0) {
+        barWidthDp * progress.percent.coerceAtMost(100) / 100f
+    } else {
+        // Unknown total: show a thin sliver as indeterminate indicator
+        barWidthDp * 0.15f
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background.copy(alpha = 0.7f))
+            .clickable(enabled = false) {},
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier
+                .background(colors.surfaceVariant)
+                .border(1.dp, colors.border)
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ChuText("\u2500\u2500\u25B2\u2500\u2500", style = typography.title, color = colors.accent)
+
+            ChuText(
+                text = progress.fileName,
+                style = typography.body,
+                color = colors.textPrimary,
+            )
+
+            if (progress.totalFiles > 1) {
+                ChuText(
+                    text = "file ${progress.fileIndex + 1} of ${progress.totalFiles}",
+                    style = typography.labelSmall,
+                    color = colors.textMuted,
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .width(barWidthDp)
+                    .height(barHeightDp)
+                    .background(colors.surface)
+                    .border(1.dp, colors.border),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(filledWidth)
+                        .fillMaxHeight()
+                        .background(colors.accent),
+                )
+            }
+
+            ChuText(
+                text = if (progress.totalBytes > 0) {
+                    val written = formatFileSize(progress.bytesWritten)
+                    val total = formatFileSize(progress.totalBytes)
+                    "$written / $total  ${progress.percent}%"
+                } else {
+                    formatFileSize(progress.bytesWritten)
+                },
+                style = typography.labelSmall,
+                color = colors.textMuted,
+            )
+        }
+    }
+}
+

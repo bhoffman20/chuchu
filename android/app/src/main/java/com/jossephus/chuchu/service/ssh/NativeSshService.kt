@@ -205,6 +205,51 @@ class NativeSshService(
         }
     }
 
+    fun sftpListDirectory(path: String): List<String> {
+        check(handle != 0L) { "Not connected" }
+        if (!bridge.nativeSftpInit(handle)) {
+            throw IllegalStateException(bridge.nativeGetLastError(handle) ?: "Native SFTP init failed")
+        }
+        val names = bridge.nativeSftpListDirectory(handle, path)
+            ?: throw IllegalStateException(bridge.nativeGetLastError(handle) ?: "Native SFTP list failed")
+        return names.toList()
+    }
+
+    fun sftpRealpath(path: String): String {
+        check(handle != 0L) { "Not connected" }
+        if (!bridge.nativeSftpInit(handle)) {
+            throw IllegalStateException(bridge.nativeGetLastError(handle) ?: "Native SFTP init failed")
+        }
+        return bridge.nativeSftpRealpath(handle, path)
+            ?: throw IllegalStateException(bridge.nativeGetLastError(handle) ?: "Native SFTP realpath failed")
+    }
+
+    fun sftpOpenWrite(path: String) {
+        check(handle != 0L) { "Not connected" }
+        if (!bridge.nativeSftpInit(handle)) {
+            throw IllegalStateException(bridge.nativeGetLastError(handle) ?: "Native SFTP init failed")
+        }
+        if (!bridge.nativeSftpOpenWrite(handle, path)) {
+            throw IllegalStateException(bridge.nativeGetLastError(handle) ?: "Native SFTP open failed")
+        }
+    }
+
+    fun sftpWriteChunk(data: ByteArray): Int {
+        check(handle != 0L) { "Not connected" }
+        val written = bridge.nativeSftpWriteChunk(handle, data)
+        if (written < 0) {
+            throw IllegalStateException(bridge.nativeGetLastError(handle) ?: "Native SFTP write failed")
+        }
+        return written
+    }
+
+    fun sftpCloseWrite() {
+        check(handle != 0L) { "Not connected" }
+        if (!bridge.nativeSftpCloseWrite(handle)) {
+            throw IllegalStateException(bridge.nativeGetLastError(handle) ?: "Native SFTP close failed")
+        }
+    }
+
     override fun close() {
         if (handle == 0L) return
         bridge.nativeClose(handle)

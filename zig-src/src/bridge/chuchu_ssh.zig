@@ -4,6 +4,7 @@ const c = @cImport({
     @cInclude("android/log.h");
     @cInclude("jni.h");
     @cInclude("libssh2.h");
+    @cInclude("libssh2_sftp.h");
     @cInclude("sys/socket.h");
     @cInclude("netdb.h");
     @cInclude("arpa/inet.h");
@@ -39,6 +40,8 @@ const NativeSshSession = struct {
     socket_fd: c_int = -1,
     session: ?*c.LIBSSH2_SESSION = null,
     channel: ?*c.LIBSSH2_CHANNEL = null,
+    sftp: ?*c.LIBSSH2_SFTP = null,
+    upload_handle: ?*c.LIBSSH2_SFTP_HANDLE = null,
     username: ?[]u8 = null,
     hostkey_ptr: ?[*]const u8 = null,
     hostkey_len: usize = 0,
@@ -150,6 +153,13 @@ fn nowMs() i64 {
 }
 
 fn destroyNativeSshSession(session: *NativeSshSession) void {
+    if (session.upload_handle) |uh| {
+        _ = c.libssh2_sftp_close_handle(uh);
+        session.upload_handle = null;
+    }
+    if (session.sftp) |sftp| {
+        _ = c.libssh2_sftp_shutdown(sftp);
+    }
     if (session.channel) |channel| {
         _ = c.libssh2_channel_close(channel);
         _ = c.libssh2_channel_free(channel);
@@ -163,6 +173,46 @@ fn destroyNativeSshSession(session: *NativeSshSession) void {
     clearHostKeyCopy(session);
     session.last_error.deinit(allocator);
     allocator.destroy(session);
+}
+
+fn ensureSftp(session: *NativeSshSession) ?*c.LIBSSH2_SFTP {
+    if (session.sftp) |sftp| return sftp;
+    const ssh_session = session.session orelse {
+        setError(session, "SSH session not connected", .{});
+        return null;
+    };
+    while (true) {
+        const sftp = c.libssh2_sftp_init(ssh_session);
+        if (sftp != null) {
+            session.sftp = sftp;
+            return sftp;
+        }
+        const rc = c.libssh2_session_last_errno(ssh_session);
+        if (rc != c.LIBSSH2_ERROR_EAGAIN) {
+            setLibssh2Error(session, "SFTP init failed", rc);
+            return null;
+        }
+        if (!waitSocket(session, setup_wait_timeout_ms)) {
+            setError(session, "SFTP init timed out", .{});
+            return null;
+        }
+    }
+}
+
+fn sftpOpenDir(session: *NativeSshSession, sftp: *c.LIBSSH2_SFTP, path_z: [:0]u8) ?*c.LIBSSH2_SFTP_HANDLE {
+    while (true) {
+        const dir = c.libssh2_sftp_opendir(sftp, path_z.ptr);
+        if (dir != null) return dir;
+        const rc = c.libssh2_session_last_errno(session.session.?);
+        if (rc != c.LIBSSH2_ERROR_EAGAIN) {
+            setLibssh2Error(session, "SFTP opendir failed", rc);
+            return null;
+        }
+        if (!waitSocket(session, io_wait_timeout_ms)) {
+            setError(session, "SFTP opendir timed out", .{});
+            return null;
+        }
+    }
 }
 
 fn connectSocket(host: [:0]const u8, port: u16) !c_int {
@@ -830,6 +880,197 @@ export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeClose(env:
     }
     closeSocket(session.socket_fd);
     session.socket_fd = -1;
+}
+
+export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeSftpInit(env: *c.JNIEnv, thiz: c.jobject, handle: c.jlong) callconv(.c) c.jboolean {
+    _ = env;
+    _ = thiz;
+    const session = sessionFromHandle(handle) orelse return c.JNI_FALSE;
+    return if (ensureSftp(session) != null) c.JNI_TRUE else c.JNI_FALSE;
+}
+
+export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeSftpListDirectory(env: *c.JNIEnv, thiz: c.jobject, handle: c.jlong, path: c.jstring) callconv(.c) c.jobjectArray {
+    _ = thiz;
+    const session = sessionFromHandle(handle) orelse return null;
+    const sftp = ensureSftp(session) orelse return null;
+    const path_bytes = jniDupString(env, path) orelse return null;
+    defer allocator.free(path_bytes);
+    const path_z = dupSentinel(path_bytes) orelse return null;
+    defer allocator.free(path_z);
+
+    const dir = sftpOpenDir(session, sftp, path_z) orelse return null;
+    defer _ = c.libssh2_sftp_closedir(dir);
+
+    var names: std.ArrayList([]u8) = .empty;
+    defer {
+        for (names.items) |n| allocator.free(n);
+        names.deinit(allocator);
+    }
+
+    var entry_buf: [1024]u8 = undefined;
+    var attrs: c.LIBSSH2_SFTP_ATTRIBUTES = undefined;
+    while (true) {
+        const rc = c.libssh2_sftp_readdir_ex(dir, &entry_buf, @intCast(entry_buf.len), null, 0, &attrs);
+        if (rc > 0) {
+            const name = entry_buf[0..@intCast(rc)];
+            if (std.mem.eql(u8, name, ".") or std.mem.eql(u8, name, "..")) continue;
+            const kind: []const u8 = blk: {
+                const has_perms = (attrs.flags & c.LIBSSH2_SFTP_ATTR_PERMISSIONS) != 0;
+                if (!has_perms) break :blk "other";
+                const mode: c_ulong = attrs.permissions;
+                const kind_bits: c_ulong = mode & 0o170000;
+                if (kind_bits == 0o040000) break :blk "dir";
+                if (kind_bits == 0o100000) break :blk "file";
+                if (kind_bits == 0o120000) break :blk "link";
+                break :blk "other";
+            };
+            const size: u64 = if ((attrs.flags & c.LIBSSH2_SFTP_ATTR_SIZE) != 0) @intCast(attrs.filesize) else 0;
+            const mtime: u64 = if ((attrs.flags & c.LIBSSH2_SFTP_ATTR_ACMODTIME) != 0) @intCast(attrs.mtime) else 0;
+            const perms: u64 = if ((attrs.flags & c.LIBSSH2_SFTP_ATTR_PERMISSIONS) != 0) @intCast(attrs.permissions) else 0;
+            const line = std.fmt.allocPrint(allocator, "{s}\t{s}\t{}\t{}\t{}", .{ name, kind, size, mtime, perms }) catch break;
+            const copy = line;
+            names.append(allocator, copy) catch {
+                allocator.free(copy);
+                break;
+            };
+            continue;
+        }
+        if (rc == 0) break;
+        if (rc == c.LIBSSH2_ERROR_EAGAIN) {
+            if (!waitSocket(session, io_wait_timeout_ms)) break;
+            continue;
+        }
+        break;
+    }
+
+    const string_class = env.*.*.FindClass.?(env, "java/lang/String") orelse return null;
+    const result = env.*.*.NewObjectArray.?(env, @intCast(names.items.len), string_class, null) orelse return null;
+    for (names.items, 0..) |name, idx| {
+        const j_name = jniNewStringOrNull(env, name) orelse continue;
+        env.*.*.SetObjectArrayElement.?(env, result, @intCast(idx), j_name);
+    }
+    return result;
+}
+
+export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeSftpRealpath(env: *c.JNIEnv, thiz: c.jobject, handle: c.jlong, path: c.jstring) callconv(.c) c.jstring {
+    _ = thiz;
+    const session = sessionFromHandle(handle) orelse return null;
+    const sftp = ensureSftp(session) orelse return null;
+    const path_bytes = jniDupString(env, path) orelse return null;
+    defer allocator.free(path_bytes);
+    const path_z = dupSentinel(path_bytes) orelse return null;
+    defer allocator.free(path_z);
+
+    var out_buf: [2048]u8 = undefined;
+    const rc = c.libssh2_sftp_realpath(sftp, path_z.ptr, &out_buf, @as(c_int, @intCast(out_buf.len)));
+    if (rc <= 0) {
+        setLibssh2Error(session, "SFTP realpath failed", c.libssh2_session_last_errno(session.session.?));
+        return null;
+    }
+    return jniNewStringOrNull(env, out_buf[0..@intCast(rc)]);
+}
+
+export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeSftpOpenWrite(env: *c.JNIEnv, thiz: c.jobject, handle: c.jlong, path: c.jstring) callconv(.c) c.jboolean {
+    _ = thiz;
+    const session = sessionFromHandle(handle) orelse return c.JNI_FALSE;
+    const sftp = ensureSftp(session) orelse return c.JNI_FALSE;
+    const path_bytes = jniDupString(env, path) orelse return c.JNI_FALSE;
+    defer allocator.free(path_bytes);
+    const path_z = dupSentinel(path_bytes) orelse return c.JNI_FALSE;
+    defer allocator.free(path_z);
+
+    if (session.upload_handle) |stale| {
+        while (true) {
+            const rc = c.libssh2_sftp_close_handle(stale);
+            if (rc != c.LIBSSH2_ERROR_EAGAIN) break;
+            if (!waitSocket(session, io_wait_timeout_ms)) break;
+        }
+        session.upload_handle = null;
+    }
+
+    const flags: c_ulong = c.LIBSSH2_FXF_WRITE | c.LIBSSH2_FXF_CREAT | c.LIBSSH2_FXF_TRUNC;
+    const mode: c_long = c.LIBSSH2_SFTP_S_IRUSR | c.LIBSSH2_SFTP_S_IWUSR | c.LIBSSH2_SFTP_S_IRGRP | c.LIBSSH2_SFTP_S_IROTH;
+    const file = sftpOpenFile(session, sftp, path_z, flags, mode) orelse return c.JNI_FALSE;
+    session.upload_handle = file;
+    return c.JNI_TRUE;
+}
+
+export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeSftpWriteChunk(env: *c.JNIEnv, thiz: c.jobject, handle: c.jlong, data: c.jbyteArray) callconv(.c) c.jint {
+    _ = thiz;
+    const session = sessionFromHandle(handle) orelse return -1;
+    const sftp_handle = session.upload_handle orelse return -1;
+
+    const data_len = env.*.*.GetArrayLength.?(env, data);
+    if (data_len == 0) return 0;
+    const data_ptr = env.*.*.GetByteArrayElements.?(env, data, null) orelse return -1;
+    defer env.*.*.ReleaseByteArrayElements.?(env, data, data_ptr, c.JNI_ABORT);
+    const ptr: [*]const u8 = @ptrCast(data_ptr);
+    const sftp_write_idle_limit_ms: i64 = 30_000;
+    var written: usize = 0;
+    var idle_since_ms: i64 = std.time.milliTimestamp();
+    while (written < @as(usize, @intCast(data_len))) {
+        const remaining: usize = @as(usize, @intCast(data_len)) - written;
+        const chunk_size: usize = @min(remaining, 32768);
+        const rc = c.libssh2_sftp_write(sftp_handle, ptr + written, chunk_size);
+        if (rc == c.LIBSSH2_ERROR_EAGAIN or rc == 0) {
+            if (waitSocket(session, io_wait_timeout_ms)) {
+                idle_since_ms = std.time.milliTimestamp();
+            } else if (std.time.milliTimestamp() - idle_since_ms > sftp_write_idle_limit_ms) {
+                setError(session, "SFTP write stalled (no socket activity for {d}ms)", .{sftp_write_idle_limit_ms});
+                return -1;
+            }
+            continue;
+        }
+        if (rc < 0) {
+            setLibssh2Error(session, "SFTP write failed", @intCast(rc));
+            return -1;
+        }
+        written += @intCast(rc);
+        idle_since_ms = std.time.milliTimestamp();
+    }
+
+    return @intCast(written);
+}
+
+export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeSftpCloseWrite(env: *c.JNIEnv, thiz: c.jobject, handle: c.jlong) callconv(.c) c.jboolean {
+    _ = thiz;
+    _ = env;
+    const session = sessionFromHandle(handle) orelse return c.JNI_FALSE;
+    const sftp_handle = session.upload_handle orelse return c.JNI_FALSE;
+    session.upload_handle = null;
+    const close_idle_limit_ms: i64 = 10_000;
+    var idle_since_ms: i64 = std.time.milliTimestamp();
+    while (true) {
+        const rc = c.libssh2_sftp_close_handle(sftp_handle);
+        if (rc == 0) return c.JNI_TRUE;
+        if (rc == c.LIBSSH2_ERROR_EAGAIN) {
+            if (waitSocket(session, io_wait_timeout_ms)) {
+                idle_since_ms = std.time.milliTimestamp();
+                continue;
+            }
+            if (std.time.milliTimestamp() - idle_since_ms < close_idle_limit_ms) continue;
+            setError(session, "SFTP close stalled (no socket activity for {d}ms)", .{close_idle_limit_ms});
+            return c.JNI_FALSE;
+        }
+        setLibssh2Error(session, "SFTP close failed", @intCast(rc));
+        return c.JNI_FALSE;
+    }
+}
+
+fn sftpOpenFile(session: *NativeSshSession, sftp: *c.LIBSSH2_SFTP, path_z: [:0]u8, flags: c_ulong, mode: c_long) ?*c.LIBSSH2_SFTP_HANDLE {
+    while (true) {
+        const file = c.libssh2_sftp_open(sftp, path_z.ptr, flags, mode);
+        if (file != null) return file;
+        const rc = c.libssh2_session_last_errno(session.session.?);
+        if (rc != c.LIBSSH2_ERROR_EAGAIN) {
+            setLibssh2Error(session, "SFTP open failed", rc);
+            return null;
+        }
+        if (!waitSocket(session, io_wait_timeout_ms)) {
+            setError(session, "SFTP open timed out", .{});
+            return null;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

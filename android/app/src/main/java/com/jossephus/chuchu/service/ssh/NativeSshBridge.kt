@@ -30,6 +30,12 @@ class NativeSshBridge {
     external fun nativeOpenShell(handle: Long, cols: Int, rows: Int, widthPx: Int, heightPx: Int, term: String): Boolean
     external fun nativeResize(handle: Long, cols: Int, rows: Int, widthPx: Int, heightPx: Int): Boolean
     external fun nativeIpcExchange(handle: Long, request: ByteArray): ByteArray?
+    external fun nativeSftpInit(handle: Long): Boolean
+    external fun nativeSftpListDirectory(handle: Long, path: String): Array<String>?
+    external fun nativeSftpRealpath(handle: Long, path: String): String?
+    external fun nativeSftpOpenWrite(handle: Long, path: String): Boolean
+    external fun nativeSftpWriteChunk(handle: Long, data: ByteArray): Int
+    external fun nativeSftpCloseWrite(handle: Long): Boolean
     external fun nativeClose(handle: Long)
     external fun nativeGenerateEd25519Key(comment: String, passphrase: String?): Array<String>?
 }

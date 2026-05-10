@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -15,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.jossephus.chuchu.ui.components.ChuButton
 import com.jossephus.chuchu.ui.components.ChuButtonVariant
 import com.jossephus.chuchu.ui.components.ChuText
+import com.jossephus.chuchu.ui.screens.Files.FolderIcon
 import com.jossephus.chuchu.ui.theme.ChuColors
 import com.jossephus.chuchu.ui.theme.ChuTypography
 
@@ -24,6 +26,7 @@ fun KeyboardAccessoryBar(
     modifierState: ModifierState,
     onAction: (AccessoryAction) -> Unit,
     onSettings: (() -> Unit)? = null,
+    onOpenFiles: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val buttonHeight = 30.dp
@@ -60,6 +63,18 @@ fun KeyboardAccessoryBar(
             }
         }
 
+        if (onOpenFiles != null) {
+            val colors = ChuColors.current
+            ChuButton(
+                onClick = onOpenFiles,
+                variant = ChuButtonVariant.Outlined,
+                modifier = Modifier.height(buttonHeight),
+                contentPadding = buttonPadding,
+            ) {
+                FolderIcon(color = colors.accent, modifier = Modifier.size(18.dp))
+            }
+        }
+
         if (onSettings != null) {
             ChuButton(
                 onClick = onSettings,
@@ -67,7 +82,7 @@ fun KeyboardAccessoryBar(
                 modifier = Modifier.height(buttonHeight),
                 contentPadding = buttonPadding,
             ) {
-                ChuText("⚙", style = typography.label)
+                ChuText("\u2699", style = typography.label)
             }
         }
     }

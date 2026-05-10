@@ -11,13 +11,23 @@ import com.jossephus.chuchu.service.ssh.TailscaleStatusChecker
 import com.jossephus.chuchu.service.terminal.HostKeyPrompt
 import com.jossephus.chuchu.service.terminal.SessionState
 import com.jossephus.chuchu.service.terminal.TerminalSessionRepository
+import com.jossephus.chuchu.ui.screens.Files.ConnectionTab
+import com.jossephus.chuchu.ui.screens.Files.FileBrowserEntry
+import com.jossephus.chuchu.ui.screens.Files.FileBrowserUiState
+import com.jossephus.chuchu.ui.screens.Files.FileEntryType
+import com.jossephus.chuchu.ui.screens.Files.FileSort
+import com.jossephus.chuchu.ui.screens.Files.UploadProgress
 import com.jossephus.chuchu.ui.terminal.GhosttyKeyAction
 import com.jossephus.chuchu.ui.terminal.TerminalSpecialKey
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class TerminalViewModel(
     application: Application,
@@ -38,9 +48,129 @@ class TerminalViewModel(
     private val _connectForm = MutableStateFlow(ConnectForm())
     val connectForm: StateFlow<ConnectForm> = _connectForm.asStateFlow()
     private var selectedHostId: Long? = null
+    private val tabByHostKey = mutableMapOf<String, ConnectionTab>()
+    private val fileHomeByHostKey = mutableMapOf<String, String>()
+    private val _selectedTab = MutableStateFlow(ConnectionTab.Terminal)
+    val selectedTab: StateFlow<ConnectionTab> = _selectedTab.asStateFlow()
+    private val _fileBrowserState = MutableStateFlow(FileBrowserUiState())
+    val fileBrowserState: StateFlow<FileBrowserUiState> = _fileBrowserState.asStateFlow()
 
     fun setSelectedHostId(hostId: Long?) {
         selectedHostId = hostId
+        _selectedTab.value = tabByHostKey[hostKey()] ?: ConnectionTab.Terminal
+    }
+
+    fun selectTab(tab: ConnectionTab) {
+        _selectedTab.value = tab
+        tabByHostKey[hostKey()] = tab
+        if (tab == ConnectionTab.Files && _fileBrowserState.value.entries.isEmpty()) {
+            resolveInitialFilePathAndRefresh()
+        }
+    }
+
+    private fun resolveInitialFilePathAndRefresh() {
+        val key = hostKey()
+        val cachedHome = fileHomeByHostKey[key]
+        if (cachedHome != null) {
+            _fileBrowserState.value = _fileBrowserState.value.copy(currentPath = cachedHome)
+            refreshFileBrowser()
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val fallback = sessionState.value.pwd?.takeIf { it.isNotBlank() } ?: "/"
+            val resolved = runCatching { sessionRepository.sftpRealpath("~") }.getOrNull()
+            val initial = resolved?.takeIf { it.isNotBlank() } ?: fallback
+            fileHomeByHostKey[key] = initial
+            _fileBrowserState.value = _fileBrowserState.value.copy(currentPath = initial, resolvedHomePath = initial)
+            refreshFileBrowser()
+        }
+    }
+
+    fun refreshFileBrowser() {
+        val pwd = sessionState.value.pwd?.takeIf { it.isNotBlank() } ?: "/"
+        val targetPath = _fileBrowserState.value.currentPath.ifBlank { pwd }
+        _fileBrowserState.value = _fileBrowserState.value.copy(currentPath = targetPath, isLoading = true, error = null)
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                sessionRepository.sftpListDirectory(targetPath)
+            }.onSuccess { rows ->
+                val entries = rows.map { row ->
+                    val parts = row.split('\t')
+                    val name = parts.getOrNull(0).orEmpty()
+                    val kind = parts.getOrNull(1).orEmpty()
+                    val size = parts.getOrNull(2)?.toLongOrNull()
+                    val mtime = parts.getOrNull(3)?.toLongOrNull()
+                    val normalizedBase = targetPath.trimEnd('/').ifEmpty { "/" }
+                    val type = when (kind) {
+                        "dir" -> FileEntryType.Directory
+                        "file" -> FileEntryType.File
+                        "link" -> FileEntryType.Symlink
+                        else -> FileEntryType.Other
+                    }
+                    FileBrowserEntry(
+                        name = name,
+                        path = if (normalizedBase == "/") "/$name" else "$normalizedBase/$name",
+                        type = type,
+                        sizeBytes = if (size == null || size <= 0L) null else size,
+                        modifiedAtText = mtime?.takeIf { it > 0L }?.let { formatMtime(it) },
+                    )
+                }
+                val sortedEntries = when (_fileBrowserState.value.sort) {
+                    FileSort.Name -> entries.sortedBy { it.name.lowercase() }
+                    FileSort.Size -> entries.sortedByDescending { it.sizeBytes ?: -1L }
+                    FileSort.Modified -> entries.sortedByDescending { it.modifiedAtText ?: "" }
+                }
+                // Only update if we're still looking at the same path
+                if (_fileBrowserState.value.currentPath == targetPath) {
+                    _fileBrowserState.value = _fileBrowserState.value.copy(entries = sortedEntries, isLoading = false, error = null)
+                }
+            }.onFailure { err ->
+                if (_fileBrowserState.value.currentPath == targetPath) {
+                    _fileBrowserState.value = _fileBrowserState.value.copy(isLoading = false, error = err.message ?: "Failed to list directory")
+                }
+            }
+        }
+    }
+
+    suspend fun beginUpload(fileName: String) {
+        val targetPath = _fileBrowserState.value.currentPath.trimEnd('/') + "/" + fileName
+        sessionRepository.sftpOpenWrite(targetPath)
+    }
+
+    suspend fun writeUploadChunk(data: ByteArray) {
+        sessionRepository.sftpWriteChunk(data)
+    }
+
+    suspend fun finishUpload() {
+        sessionRepository.sftpCloseWrite()
+        refreshFileBrowser()
+    }
+
+    fun setUploadProgress(progress: UploadProgress?) {
+        _fileBrowserState.value = _fileBrowserState.value.copy(uploadProgress = progress)
+    }
+
+    fun goUpDirectory() {
+        val current = _fileBrowserState.value.currentPath
+        val parent = current.substringBeforeLast('/', "").ifBlank { "/" }
+        openPath(parent)
+    }
+
+    fun openPath(path: String) {
+        _fileBrowserState.value = _fileBrowserState.value.copy(currentPath = path)
+        refreshFileBrowser()
+    }
+
+    fun selectFileSort(sort: FileSort) {
+        _fileBrowserState.value = _fileBrowserState.value.copy(sort = sort)
+        refreshFileBrowser()
+    }
+
+    private fun hostKey(): String = selectedHostId?.toString() ?: "adhoc"
+
+    private fun formatMtime(epochSeconds: Long): String {
+        val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+        return formatter.format(Date(epochSeconds * 1000L))
     }
 
     fun updateHost(host: String) {

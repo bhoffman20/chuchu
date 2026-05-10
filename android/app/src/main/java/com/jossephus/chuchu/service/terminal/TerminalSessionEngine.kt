@@ -22,6 +22,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.nio.file.Path
 import java.util.concurrent.Executors
@@ -339,6 +340,26 @@ class TerminalSessionEngine(
             bridge.nativeScrollToActive(handle)
             requestSnapshot(force = true)
         }
+    }
+
+    suspend fun sftpListDirectory(path: String): List<String> = withContext(dispatcher) {
+        nativeSsh.sftpListDirectory(path)
+    }
+
+    suspend fun sftpRealpath(path: String): String = withContext(dispatcher) {
+        nativeSsh.sftpRealpath(path)
+    }
+
+    suspend fun sftpOpenWrite(path: String) = withContext(dispatcher) {
+        nativeSsh.sftpOpenWrite(path)
+    }
+
+    suspend fun sftpWriteChunk(data: ByteArray): Int = withContext(dispatcher) {
+        nativeSsh.sftpWriteChunk(data)
+    }
+
+    suspend fun sftpCloseWrite() = withContext(dispatcher) {
+        nativeSsh.sftpCloseWrite()
     }
 
     fun disconnect() {

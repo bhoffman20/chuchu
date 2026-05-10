@@ -34,6 +34,7 @@ fun ChuTextField(
     label: String,
     placeholder: String = "",
     singleLine: Boolean = false,
+    showLabel: Boolean = true,
     modifier: Modifier = Modifier,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
@@ -54,12 +55,14 @@ fun ChuTextField(
     }
 
     Column(modifier = modifier) {
-        ChuText(
-            text = "> $label",
-            style = typography.labelSmall,
-            color = if (focused) colors.accent else colors.textSecondary,
-            modifier = Modifier.padding(bottom = 4.dp),
-        )
+        if (showLabel) {
+            ChuText(
+                text = "> $label",
+                style = typography.labelSmall,
+                color = if (focused) colors.accent else colors.textSecondary,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+        }
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
