@@ -79,6 +79,7 @@ fun AddServerScreen(
             label = "Name",
             placeholder = "My server",
             singleLine = true,
+            autoFocus = false,
             modifier = Modifier.fillMaxWidth(),
         )
         ChuTextField(
