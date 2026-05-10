@@ -9,7 +9,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -19,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import com.jossephus.chuchu.ui.components.ChuButton
 import com.jossephus.chuchu.ui.components.ChuButtonVariant
 import com.jossephus.chuchu.ui.components.ChuText
-import com.jossephus.chuchu.ui.screens.Files.FolderIcon
 import com.jossephus.chuchu.ui.theme.ChuColors
 import com.jossephus.chuchu.ui.theme.ChuTypography
 
@@ -136,6 +136,7 @@ private fun FilesButton(
     buttonPadding: PaddingValues,
 ) {
     val colors = ChuColors.current
+    val typography = ChuTypography.current
     if (onOpenFiles == null) return
     ChuButton(
         onClick = onOpenFiles,
@@ -143,7 +144,17 @@ private fun FilesButton(
         modifier = Modifier.height(buttonHeight),
         contentPadding = buttonPadding,
     ) {
-        FolderIcon(color = colors.accent, modifier = Modifier.size(18.dp))
+        ChuText(
+            text = "",
+            style = TextStyle(
+                fontFamily = typography.label.fontFamily,
+                fontWeight = typography.label.fontWeight,
+                fontStyle = typography.label.fontStyle,
+                fontSize = 16.sp,
+                lineHeight = 16.sp,
+            ),
+            color = colors.textPrimary,
+        )
     }
 }
 
