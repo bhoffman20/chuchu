@@ -7,8 +7,10 @@ object KeyMapper {
         val mods = translateMods(metaState)
         val mapped = when (keyCode) {
             // Navigation and editing keys
-            KeyEvent.KEYCODE_DPAD_UP -> MappedKey(key = TerminalSpecialKey.Up.engineKey, codepoint = 0, mods = mods)
-            KeyEvent.KEYCODE_DPAD_DOWN -> MappedKey(key = TerminalSpecialKey.Down.engineKey, codepoint = 0, mods = mods)
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_VOLUME_UP -> MappedKey(key = TerminalSpecialKey.Up.engineKey, codepoint = 0, mods = mods)
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_VOLUME_DOWN -> MappedKey(key = TerminalSpecialKey.Down.engineKey, codepoint = 0, mods = mods)
             KeyEvent.KEYCODE_DPAD_LEFT -> MappedKey(key = TerminalSpecialKey.Left.engineKey, codepoint = 0, mods = mods)
             KeyEvent.KEYCODE_DPAD_RIGHT -> MappedKey(key = TerminalSpecialKey.Right.engineKey, codepoint = 0, mods = mods)
             KeyEvent.KEYCODE_PAGE_UP -> MappedKey(key = TerminalSpecialKey.PageUp.engineKey, codepoint = 0, mods = mods)
