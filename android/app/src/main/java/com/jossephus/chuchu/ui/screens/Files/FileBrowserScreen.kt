@@ -133,14 +133,8 @@ fun FileBrowserScreen(
                                     .padding(horizontal = 8.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                val iconColor = when (entry.type) {
-                                    FileEntryType.Directory -> colors.accent
-                                    FileEntryType.Symlink -> colors.accent
-                                    else -> colors.textMuted
-                                }
-                                FileTypeIcon(
-                                    type = entry.type,
-                                    color = iconColor,
+                                FileEntryIcon(
+                                    entry = entry,
                                     modifier = Modifier.size(20.dp),
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
