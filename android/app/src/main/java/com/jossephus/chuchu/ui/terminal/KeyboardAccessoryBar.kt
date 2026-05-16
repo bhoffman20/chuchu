@@ -31,8 +31,12 @@ fun KeyboardAccessoryBar(
     modifierState: ModifierState,
     onAction: (AccessoryAction) -> Unit,
     onSettings: (() -> Unit)? = null,
+    onChuchuKey: (() -> Unit)? = null,
+    chuchuKeyActive: Boolean = false,
     onOpenFiles: (() -> Unit)? = null,
     useSingleRow: Boolean = false,
+    horizontalPadding: Dp = 8.dp,
+    verticalPadding: Dp = 6.dp,
     modifier: Modifier = Modifier,
 ) {
     val buttonHeight = 30.dp
@@ -42,7 +46,7 @@ fun KeyboardAccessoryBar(
         Row(
             modifier = modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .padding(horizontal = horizontalPadding, vertical = verticalPadding)
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -57,6 +61,8 @@ fun KeyboardAccessoryBar(
                 )
             }
             FilesButton(
+                onChuchuKey = onChuchuKey,
+                chuchuKeyActive = chuchuKeyActive,
                 onOpenFiles = onOpenFiles,
                 buttonHeight = buttonHeight,
                 buttonPadding = buttonPadding,
@@ -73,7 +79,7 @@ fun KeyboardAccessoryBar(
     FlowRow(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = horizontalPadding, vertical = verticalPadding),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
         maxLines = 2,
@@ -88,6 +94,8 @@ fun KeyboardAccessoryBar(
             )
         }
         FilesButton(
+            onChuchuKey = onChuchuKey,
+            chuchuKeyActive = chuchuKeyActive,
             onOpenFiles = onOpenFiles,
             buttonHeight = buttonHeight,
             buttonPadding = buttonPadding,
@@ -132,12 +140,28 @@ private fun AccessoryButton(
 
 @Composable
 private fun FilesButton(
+    onChuchuKey: (() -> Unit)?,
+    chuchuKeyActive: Boolean,
     onOpenFiles: (() -> Unit)?,
     buttonHeight: Dp,
     buttonPadding: PaddingValues,
 ) {
     val colors = ChuColors.current
     val typography = ChuTypography.current
+    if (onChuchuKey != null) {
+        ChuButton(
+            onClick = onChuchuKey,
+            variant = if (chuchuKeyActive) ChuButtonVariant.Filled else ChuButtonVariant.Outlined,
+            modifier = Modifier.height(buttonHeight),
+            contentPadding = buttonPadding,
+        ) {
+            ChuText(
+                "⌘",
+                style = typography.label,
+                color = if (chuchuKeyActive) colors.onAccent else colors.textPrimary,
+            )
+        }
+    }
     if (onOpenFiles == null) return
     ChuButton(
         onClick = onOpenFiles,

@@ -80,6 +80,9 @@ import com.jossephus.chuchu.ui.components.ChuText
 import com.jossephus.chuchu.ui.components.ChuTextField
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.jossephus.chuchu.ui.terminal.AccessoryAction
+import com.jossephus.chuchu.ui.terminal.AccessoryKeyItem
+import com.jossephus.chuchu.ui.terminal.ChuchuKeyBindings
+import com.jossephus.chuchu.ui.terminal.ChuchuHint
 import com.jossephus.chuchu.ui.terminal.GhosttyKey
 import com.jossephus.chuchu.ui.terminal.GhosttyKeyAction
 import com.jossephus.chuchu.ui.terminal.KeyboardAccessoryBar
@@ -274,6 +277,30 @@ fun TerminalScreen(
     var pendingTabSpec by remember { mutableStateOf<TabSpec?>(null) }
     var showTabSheet by remember { mutableStateOf(false) }
     var hasSeenTabsForHost by remember(hostId) { mutableStateOf(false) }
+    var focusedTabIndex by remember { mutableStateOf(0) }
+    var terminalFontSizeSp by remember {
+        mutableStateOf(terminalPrefs.getFloat("terminal_font_size_sp", 14f).coerceAtLeast(0.1f))
+    }
+    val chuchuKeys = remember(vm) {
+        ChuchuKeyBindings(
+            hints = listOf(
+                ChuchuHint(key = "t", description = "tabs"),
+                ChuchuHint(key = "n", description = "new tab"),
+            ),
+            handlers = mapOf(
+                't' to { showTabSheet = true },
+                'n' to {
+                    vm.duplicateActiveTab()
+                    vm.selectConnectionTab(ConnectionTab.Terminal)
+                    showTabSheet = false
+                },
+            ),
+        )
+    }
+
+    LaunchedEffect(terminalFontSizeSp) {
+        terminalPrefs.edit().putFloat("terminal_font_size_sp", terminalFontSizeSp).apply()
+    }
 
     LaunchedEffect(hostId) {
         showPassphrasePrompt = false
@@ -505,6 +532,12 @@ fun TerminalScreen(
                     }
 
                     fun dispatchAccessoryAction(action: AccessoryAction) {
+                        if (action is AccessoryAction.SendText && chuchuKeys.handleText(action.text)) {
+                            return
+                        }
+                        if (chuchuKeys.isPrefixActive) {
+                            chuchuKeys.reset()
+                        }
                         val currentModifierState = modifierState
                         val result = TerminalAccessoryDispatcher.dispatch(action, currentModifierState)
                         modifierState = result.modifierState
@@ -778,11 +811,30 @@ fun TerminalScreen(
 
                     Spacer(modifier = Modifier.height(6.dp))
                     if (selectedTab == ConnectionTab.Terminal) {
+                        AnimatedVisibility(visible = chuchuKeys.isPrefixActive, enter = fadeIn(), exit = fadeOut()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    .background(colors.surface)
+                                    .border(1.dp, colors.border)
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                ChuText("⌘ key", style = typography.label, color = colors.accent)
+                                chuchuKeys.hints().forEach { hint ->
+                                    ChuText("${hint.key}: ${hint.description}", style = typography.labelSmall, color = colors.textSecondary)
+                                }
+                            }
+                        }
                         KeyboardAccessoryBar(
                             items = accessoryLayout,
                             modifierState = modifierState,
                             onAction = ::dispatchAccessoryAction,
                             onSettings = onOpenSettings,
+                            onChuchuKey = { chuchuKeys.togglePrefix() },
+                            chuchuKeyActive = chuchuKeys.isPrefixActive,
                             onOpenFiles = { vm.selectConnectionTab(ConnectionTab.Files) },
                             useSingleRow = useSingleRowAccessoryBar,
                             modifier = Modifier.padding(bottom = 2.dp),
