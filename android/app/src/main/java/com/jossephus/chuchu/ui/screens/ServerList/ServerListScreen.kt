@@ -38,6 +38,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -49,7 +50,6 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import com.jossephus.chuchu.model.HostProfile
 import com.jossephus.chuchu.model.Transport
-import com.jossephus.chuchu.service.terminal.SessionStatus
 import com.jossephus.chuchu.service.terminal.TerminalSessionRepository
 import com.jossephus.chuchu.ui.components.ChuButton
 import com.jossephus.chuchu.ui.components.ChuButtonVariant
@@ -74,11 +74,9 @@ fun ServerListScreen(
     val context = LocalContext.current
     val application = context.applicationContext as Application
     val sessionRepo = remember(application) { TerminalSessionRepository.getInstance(application) }
-    val sessionState by sessionRepo.sessionState.collectAsStateWithLifecycle()
-    val activeSessionKey = sessionState.sessionKey
-    val hasActiveSession = sessionState.status == SessionStatus.Connecting ||
-        sessionState.status == SessionStatus.Connected ||
-        sessionState.status == SessionStatus.Reconnecting
+    val connectedHostIds by sessionRepo.connectedHostIds.collectAsStateWithLifecycle()
+    val openTabs by sessionRepo.tabs.collectAsStateWithLifecycle()
+    val hasActiveSession = openTabs.isNotEmpty()
 
     var selectedHostId by remember { mutableStateOf<Long?>(null) }
     var pendingConnectHostId by remember { mutableStateOf<Long?>(null) }
@@ -139,7 +137,7 @@ fun ServerListScreen(
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(hosts, key = { it.id }) { host ->
                         val targetSessionKey = "host:${host.id}"
-                        val isConnected = sessionState.status == SessionStatus.Connected && activeSessionKey == targetSessionKey
+                        val isConnected = host.id in connectedHostIds
                         HostCard(
                             host = host,
                             isConnected = isConnected,
@@ -147,8 +145,7 @@ fun ServerListScreen(
                             onLongPress = { selectedHostId = host.id },
                             onCancelSelection = { selectedHostId = null },
                             onDeleteSelection = {
-                                val selected_key = "host:${host.id}"
-                                val is_selected_connected = activeSessionKey == selected_key && hasActiveSession
+                                val is_selected_connected = host.id in connectedHostIds
                                 if (is_selected_connected) {
                                     Toast.makeText(
                                         context,
@@ -166,7 +163,8 @@ fun ServerListScreen(
                             },
                             onConnect = {
                                 selectedHostId = null
-                                if (!hasActiveSession || activeSessionKey == targetSessionKey) {
+                                val canNavigate = true
+                                if (canNavigate) {
                                     val needsNotificationPermission =
                                         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                                             ContextCompat.checkSelfPermission(
@@ -279,6 +277,7 @@ private fun HostCard(
     val maxSwipePx = with(density) { 132.dp.toPx() }
     val disconnectThresholdPx = with(density) { 72.dp.toPx() }
     val swipeOffsetX = remember(host.id) { Animatable(0f) }
+    val hostLabel = "> ${host.username}@${host.host}:${host.port}"
 
     LaunchedEffect(isConnected) {
         if (!isConnected) {
@@ -401,9 +400,12 @@ private fun HostCard(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             ChuText(
-                                "> ${host.username}@${host.host}:${host.port}",
+                                hostLabel,
                                 style = typography.body,
                                 color = colors.textSecondary,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                             if (host.transport == Transport.TailscaleSSH) {
                                 TuiBadge(
