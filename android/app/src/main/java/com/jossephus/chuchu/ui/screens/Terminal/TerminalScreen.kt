@@ -241,10 +241,7 @@ fun TerminalScreen(
     val tabs by vm.tabs.collectAsStateWithLifecycle()
     val activeTabId by vm.activeTabId.collectAsStateWithLifecycle()
     val activeTab by vm.activeTab.collectAsStateWithLifecycle()
-    val tabsForHost = remember(tabs, hostId) { tabs.filter { it.spec.hostId == hostId } }
-    val activeTabForHost = remember(activeTab, hostId) {
-        activeTab?.takeIf { it.spec.hostId == hostId }
-    }
+    val activeTabForHost = remember(activeTab, hostId) { activeTab?.takeIf { it.spec.hostId == hostId } }
     val selectedTab by vm.selectedTab.collectAsStateWithLifecycle()
     val fileBrowserState by vm.fileBrowserState.collectAsStateWithLifecycle()
     val hostKeyPrompt by vm.hostKeyPrompt.collectAsStateWithLifecycle()
@@ -338,20 +335,23 @@ fun TerminalScreen(
         }
     }
 
-    LaunchedEffect(tabsForHost.isNotEmpty(), hostId) {
-        if (tabsForHost.isNotEmpty()) hasSeenTabsForHost = true
+    val hasTabsForHost = remember(tabs, hostId) {
+        if (hostId == null) false else tabs.any { it.spec.hostId == hostId }
     }
 
-    LaunchedEffect(hasSeenTabsForHost, tabsForHost.isEmpty()) {
-        if (hasSeenTabsForHost && tabsForHost.isEmpty()) {
+    LaunchedEffect(hostId, hasTabsForHost) {
+        if (hostId == null) return@LaunchedEffect
+        if (hasTabsForHost) {
+            hasSeenTabsForHost = true
+        } else if (hasSeenTabsForHost) {
             onBack()
         }
     }
 
-    LaunchedEffect(showTabSheet, tabsForHost, activeTabId) {
-        if (!showTabSheet || tabsForHost.isEmpty()) return@LaunchedEffect
-        val activeIndex = tabsForHost.indexOfFirst { it.id == activeTabId }
-        focusedTabIndex = if (activeIndex >= 0) activeIndex else focusedTabIndex.coerceIn(0, tabsForHost.lastIndex)
+    LaunchedEffect(showTabSheet, tabs, activeTabId) {
+        if (!showTabSheet || tabs.isEmpty()) return@LaunchedEffect
+        val activeIndex = tabs.indexOfFirst { it.id == activeTabId }
+        focusedTabIndex = if (activeIndex >= 0) activeIndex else focusedTabIndex.coerceIn(0, tabs.lastIndex)
     }
 
     if (showPassphrasePrompt) {
@@ -766,7 +766,7 @@ fun TerminalScreen(
                                     }
                                     onTerminalKey = { key, codepoint, mods, action ->
                                         var shouldForwardToTerminal = true
-                                        if (showTabSheet && tabsForHost.isNotEmpty()) {
+                                        if (showTabSheet && tabs.isNotEmpty()) {
                                             var consumedByTabSwitcher = true
                                             val isPress = action == GhosttyKeyAction.Press
                                             if (isPress && chuchuKeys.isPrefixActive) {
@@ -790,14 +790,14 @@ fun TerminalScreen(
                                                 when (key) {
                                                     TerminalSpecialKey.Left.engineKey,
                                                     TerminalSpecialKey.Up.engineKey,
-                                                    -> focusedTabIndex = (focusedTabIndex - 1).mod(tabsForHost.size)
+                                                    -> focusedTabIndex = (focusedTabIndex - 1).mod(tabs.size)
 
                                                     TerminalSpecialKey.Right.engineKey,
                                                     TerminalSpecialKey.Down.engineKey,
-                                                    -> focusedTabIndex = (focusedTabIndex + 1).mod(tabsForHost.size)
+                                                    -> focusedTabIndex = (focusedTabIndex + 1).mod(tabs.size)
 
                                                     TerminalSpecialKey.Enter.engineKey -> {
-                                                        tabsForHost.getOrNull(focusedTabIndex)?.let {
+                                                        tabs.getOrNull(focusedTabIndex)?.let {
                                                             vm.selectTab(it.id)
                                                             showTabSheet = false
                                                         }
@@ -909,13 +909,13 @@ fun TerminalScreen(
                             val result = TerminalAccessoryDispatcher.dispatch(action, ModifierState())
                             when (result.specialKey) {
                                 TerminalSpecialKey.Left, TerminalSpecialKey.Up -> {
-                                    if (tabsForHost.isNotEmpty()) focusedTabIndex = (focusedTabIndex - 1).mod(tabsForHost.size)
+                                    if (tabs.isNotEmpty()) focusedTabIndex = (focusedTabIndex - 1).mod(tabs.size)
                                 }
                                 TerminalSpecialKey.Right, TerminalSpecialKey.Down -> {
-                                    if (tabsForHost.isNotEmpty()) focusedTabIndex = (focusedTabIndex + 1).mod(tabsForHost.size)
+                                    if (tabs.isNotEmpty()) focusedTabIndex = (focusedTabIndex + 1).mod(tabs.size)
                                 }
                                 TerminalSpecialKey.Enter -> {
-                                    tabsForHost.getOrNull(focusedTabIndex)?.let {
+                                    tabs.getOrNull(focusedTabIndex)?.let {
                                         vm.selectTab(it.id)
                                         showTabSheet = false
                                     }
@@ -934,7 +934,7 @@ fun TerminalScreen(
                         }
                     }
                     CommandPalette(
-                        tabs = tabsForHost,
+                        tabs = tabs,
                         activeTabId = activeTabId,
                         focusedTabIndex = focusedTabIndex,
                         onFocusedTabIndexChange = { focusedTabIndex = it },
