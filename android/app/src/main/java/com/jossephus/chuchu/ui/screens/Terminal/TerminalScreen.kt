@@ -343,6 +343,10 @@ fun TerminalScreen(
         remember(tabs, hostId) {
             if (hostId == null) false else tabs.any { it.spec.hostId == hostId }
         }
+    val tabsForHost =
+        remember(tabs, hostId) {
+            if (hostId == null) emptyList() else tabs.filter { it.spec.hostId == hostId }
+        }
 
     LaunchedEffect(hostId, hasTabsForHost) {
         if (hostId == null) return@LaunchedEffect
@@ -353,11 +357,11 @@ fun TerminalScreen(
         }
     }
 
-    LaunchedEffect(showTabSheet, tabs, activeTabId) {
-        if (!showTabSheet || tabs.isEmpty()) return@LaunchedEffect
-        val activeIndex = tabs.indexOfFirst { it.id == activeTabId }
+    LaunchedEffect(showTabSheet, tabsForHost, activeTabId) {
+        if (!showTabSheet || tabsForHost.isEmpty()) return@LaunchedEffect
+        val activeIndex = tabsForHost.indexOfFirst { it.id == activeTabId }
         focusedTabIndex =
-            if (activeIndex >= 0) activeIndex else focusedTabIndex.coerceIn(0, tabs.lastIndex)
+            if (activeIndex >= 0) activeIndex else focusedTabIndex.coerceIn(0, tabsForHost.lastIndex)
     }
 
     if (showPassphrasePrompt) {
@@ -1002,7 +1006,7 @@ fun TerminalScreen(
                                                 }
                                                 onTerminalKey = { key, codepoint, mods, action ->
                                                     var shouldForwardToTerminal = true
-                                                    if (showTabSheet && tabs.isNotEmpty()) {
+                                                    if (showTabSheet && tabsForHost.isNotEmpty()) {
                                                         var consumedByTabSwitcher = true
                                                         val isPress =
                                                             action == GhosttyKeyAction.Press
@@ -1032,19 +1036,19 @@ fun TerminalScreen(
                                                                 TerminalSpecialKey.Up.engineKey ->
                                                                     focusedTabIndex =
                                                                         (focusedTabIndex - 1).mod(
-                                                                            tabs.size
+                                                                            tabsForHost.size
                                                                         )
 
                                                                 TerminalSpecialKey.Right.engineKey,
                                                                 TerminalSpecialKey.Down.engineKey ->
                                                                     focusedTabIndex =
                                                                         (focusedTabIndex + 1).mod(
-                                                                            tabs.size
+                                                                            tabsForHost.size
                                                                         )
 
                                                                 TerminalSpecialKey.Enter
                                                                     .engineKey -> {
-                                                                    tabs
+                                                                    tabsForHost
                                                                         .getOrNull(focusedTabIndex)
                                                                         ?.let {
                                                                             vm.selectTab(it.id)
@@ -1192,16 +1196,18 @@ fun TerminalScreen(
                             when (result.specialKey) {
                                 TerminalSpecialKey.Left,
                                 TerminalSpecialKey.Up -> {
-                                    if (tabs.isNotEmpty())
-                                        focusedTabIndex = (focusedTabIndex - 1).mod(tabs.size)
+                                    if (tabsForHost.isNotEmpty())
+                                        focusedTabIndex =
+                                            (focusedTabIndex - 1).mod(tabsForHost.size)
                                 }
                                 TerminalSpecialKey.Right,
                                 TerminalSpecialKey.Down -> {
-                                    if (tabs.isNotEmpty())
-                                        focusedTabIndex = (focusedTabIndex + 1).mod(tabs.size)
+                                    if (tabsForHost.isNotEmpty())
+                                        focusedTabIndex =
+                                            (focusedTabIndex + 1).mod(tabsForHost.size)
                                 }
                                 TerminalSpecialKey.Enter -> {
-                                    tabs.getOrNull(focusedTabIndex)?.let {
+                                    tabsForHost.getOrNull(focusedTabIndex)?.let {
                                         vm.selectTab(it.id)
                                         showTabSheet = false
                                     }
@@ -1220,7 +1226,7 @@ fun TerminalScreen(
                         }
                     }
                     CommandPalette(
-                        tabs = tabs,
+                        tabs = tabsForHost,
                         activeTabId = activeTabId,
                         focusedTabIndex = focusedTabIndex,
                         onFocusedTabIndexChange = { focusedTabIndex = it },
