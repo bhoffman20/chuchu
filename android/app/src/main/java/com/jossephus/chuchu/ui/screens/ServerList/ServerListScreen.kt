@@ -187,7 +187,12 @@ fun ServerListScreen(
                             },
                             onDisconnect = {
                                 selectedHostId = null
-                                sessionRepo.disconnect()
+                                openTabs
+                                    .asSequence()
+                                    .filter { it.spec.hostId == host.id }
+                                    .map { it.id }
+                                    .toList()
+                                    .forEach(sessionRepo::closeTab)
                             },
                         )
                     }
