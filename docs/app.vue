@@ -97,7 +97,7 @@ onMounted(() => {
             @click="toggleTheme"
             :aria-label="isDark ? 'switch to light theme' : 'switch to dark theme'"
           >
-            {{ isDark ? 'dark' : 'light' }}
+            {{ isDark ? 'light' : 'dark' }}
           </button>
           <span class="seg hidden sm:inline-flex">~/chuchu</span>
           <span class="seg bg-surfaceVar text-fg">main</span>
