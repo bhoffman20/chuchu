@@ -92,6 +92,6 @@ chuchu is one of my favorite characters from the amharic book [Yesinbit Kelemat]
 ## Demo
 
 <p align="center">
-  <video src="./assets/chuchu_demo.gif" width="400" autoplay loop muted playsinline></video>
+  <img src="./assets/chuchu_demo.gif" width="400" alt="Chuchu demo" />
 </p>
 
