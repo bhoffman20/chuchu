@@ -24,20 +24,24 @@ html {
 html[data-theme="light"] {
   color-scheme: light;
 
-  /* Catppuccin Latte */
-  --bg: #EFF1F5;
-  --surface: #CCD0DA;
-  --surfaceVar: #E6E9EF;
-  --fg: #4C4F69;
-  --fgSec: #5C5F77;
-  --muted: #8C8FA1;
-  --border: #BCC0CC;
-  --accent: #7287FD;
-  --accentSec: #1E66F5;
-  --error: #D20F39;
-  --success: #40A02B;
-  --warning: #DF8E1D;
-  --onAccent: #EFF1F5;
+  /* Neobones Light — sage paper + deep olive ink.
+     Tokens derived the same way as the Android app's toChuColorPalette():
+     accent = foreground mixed toward bg (terminal "inverted text" button),
+     border bumped to ~28% contrast against bg so secondary controls remain
+     readable on a pale background. */
+  --bg:         #E5EDE6;
+  --surface:    #D7E0D8;
+  --surfaceVar: #DEE6DF;
+  --fg:         #202E18;
+  --fgSec:      #475142;
+  --muted:      #7B856D;
+  --border:     #A5ACA0;
+  --accent:     #2C3A22;
+  --accentSec:  #5E7F94;
+  --error:      #A8334C;
+  --success:    #567A30;
+  --warning:    #944927;
+  --onAccent:   #E5EDE6;
 }
 
 html, body {
@@ -140,6 +144,10 @@ a:hover {
 .bracket-btn.accent .bracket {
   color: var(--onAccent);
 }
+.bracket-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* TuiBadge equivalent */
 .tui-badge {
@@ -151,6 +159,19 @@ a:hover {
   border: 1px solid;
 }
 
+/* Inline chip — matches .seg rhythm for inline badges */
+.inline-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--accent);
+}
+
 /* Status bar segment */
 .seg {
   display: inline-flex;
@@ -158,6 +179,10 @@ a:hover {
   padding: 0.25rem 0.65rem;
   font-size: 0.7rem;
   line-height: 1;
+}
+.seg:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* Status bar */

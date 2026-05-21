@@ -1,52 +1,46 @@
 <script setup lang="ts">
 const year = new Date().getFullYear()
 
+const release = await $fetch('https://api.github.com/repos/jossephus/chuchu/releases/latest').catch(() => null)
+const version = release?.tag_name ?? ''
+
 const groups = [
   {
-    label: 'connect',
+    label: 'ssh, mosh & tailscale',
     items: [
       'tailscale ssh — magicdns, passwordless',
-      'classic ssh — password and key auth',
-      'ed25519 + rsa key import & generation',
+      'classic ssh with password & key auth',
       'mosh — roaming, low-latency mobile shell',
-      'integrated sftp browser — upload, download, delete',
-      'biometric lock — app-wide and per-server',
+      'sftp browser — upload, download, delete',
+      'biometric lock, app-wide or per-server',
     ],
   },
   {
-    label: 'terminal',
+    label: 'a real terminal',
     items: [
-      'kitty image protocol — inline image rendering',
+      'native libghostty renderer via jni',
+      'kitty image protocol — inline images',
       '400+ official ghostty themes',
-      'configurable accessory key row — reorder, single / multi-row',
-      'custom key macros and nested key groups',
-      'chuchu key — leader-style prefix for app actions',
-      'configurable fonts (jetbrains mono · fira code · hack) + size',
-      'real resize, scrollback, focus, mouse and modifier keys',
+      'true resize, scrollback, mouse & modifiers',
       'system clipboard copy / paste',
     ],
   },
   {
-    label: 'sessions',
+    label: 'built for thumbs',
     items: [
-      'multi-session tabs with command palette switcher',
-      'foreground service keeps sessions alive in background',
-    ],
-  },
-  {
-    label: 'under the hood',
-    items: [
-      'native libghostty terminal renderer via jni',
-      'native libssh2 + openssl for ssh / sftp',
-      'native mosh built in zig',
-      'kotlin + jetpack compose ui',
-      'room persistence for hosts and keys',
+      'multi-session tabs with command palette',
+      'configurable accessory key row',
+      'custom key macros & nested key groups',
+      'chuchu key — leader prefix for app actions',
+      'foreground service keeps sessions alive',
     ],
   },
 ]
 
 // Theme toggle — sync with inline script in nuxt.config head
 const isDark = ref(true)
+const darkVideo = ref<HTMLVideoElement>()
+const lightVideo = ref<HTMLVideoElement>()
 
 function applyTheme(dark: boolean) {
   isDark.value = dark
@@ -60,7 +54,12 @@ function applyTheme(dark: boolean) {
 }
 
 function toggleTheme() {
+  const time = (isDark.value ? darkVideo.value : lightVideo.value)?.currentTime ?? 0
   applyTheme(!isDark.value)
+  nextTick(() => {
+    const target = isDark.value ? darkVideo.value : lightVideo.value
+    if (target) target.currentTime = time
+  })
 }
 
 onMounted(() => {
@@ -89,7 +88,7 @@ onMounted(() => {
         <div class="flex items-stretch">
           <span class="seg bg-accent text-onAccent font-bold">NORMAL</span>
           <span class="seg text-fg">chuchu</span>
-          <span class="seg text-muted">v0.1.4</span>
+          <span class="seg text-muted">{{ version }}</span>
         </div>
         <div class="flex items-stretch text-muted">
           <button
@@ -112,22 +111,24 @@ onMounted(() => {
             <img src="/logo.png" alt="" class="w-10 h-10" />
             <div>
               <h1 class="text-fg text-lg font-bold">chuchu</h1>
-              <p class="text-muted text-sm">
-                native android ssh client · powered by libghostty
+              <p class="text-fg text-base">
+                <span class="font-bold">native android ssh client</span>
+                <span class="text-muted"> · powered by libghostty</span>
               </p>
             </div>
           </div>
 
           <p class="text-fg text-base leading-relaxed max-w-2xl">
-            <span class="text-accent">$</span> A modern, native Android SSH
-            client with a real terminal renderer. Tailscale, SSH and Mosh ·
+            <span class="text-accent">$</span> chuchu — a native
+            <span class="bg-accent text-onAccent font-bold px-1.5 py-0.5">Android SSH client</span>
+            with a beautiful terminal renderer. Tailscale, SSH and Mosh ·
             kitty image protocol · 400+ ghostty themes · multi-session tabs ·
             sftp · biometric lock.
           </p>
 
           <div class="flex flex-wrap gap-2">
             <a
-              href="https://github.com/jossephus/chuchu/releases/tag/v0.1.4"
+              :href="`https://github.com/jossephus/chuchu/releases/tag/${version}`"
               class="bracket-btn accent"
             >
               <span class="bracket">[</span>
@@ -150,56 +151,63 @@ onMounted(() => {
               <span>github</span>
               <span class="bracket">]</span>
             </a>
-            <a
-              href="https://github.com/jossephus/chuchu/issues"
-              class="bracket-btn"
-            >
-              <span class="bracket">[</span>
-              <span>issues</span>
-              <span class="bracket">]</span>
-            </a>
+
           </div>
         </div>
 
-        <!-- demo gif -->
+        <!-- demo video -->
         <div class="mt-10 md:mt-14">
           <div class="tui-rule">demo</div>
-          <a
-            href="/chuchu_demo.gif"
+          <div
             class="block w-full max-w-xs sm:max-w-sm mx-auto"
             aria-label="watch demo"
           >
             <div class="relative bg-surfaceVar border border-border p-2">
               <!-- notched top bar -->
-              <div class="flex items-center justify-center h-5 mb-1">
-                <div class="w-16 h-3 bg-surface border border-border" />
+              <div class="flex items-center justify-center h-4 mb-1.5">
+                <div class="w-8 h-1 bg-border rounded" />
               </div>
               <!-- screen -->
-              <img
-                src="/chuchu_demo.gif"
-                alt="chuchu demo"
+              <video
+                ref="darkVideo"
+                v-show="isDark"
+                src="/demo-dark.mp4"
+                autoplay
+                loop
+                muted
+                playsinline
+                class="w-full object-contain border border-border"
+              />
+              <video
+                ref="lightVideo"
+                v-show="!isDark"
+                src="/demo-light.mp4"
+                autoplay
+                loop
+                muted
+                playsinline
                 class="w-full object-contain border border-border"
               />
               <!-- bottom bar -->
-              <div class="flex items-center justify-center h-5 mt-1">
-                <div class="w-12 h-0.5 bg-muted/50" />
+              <div class="flex items-center justify-center h-4 mt-1.5">
+                <div class="w-16 h-0.5 bg-border" />
               </div>
             </div>
-          </a>
+          </div>
         </div>
 
         <!-- features -->
         <div class="mt-10 md:mt-14">
           <div class="tui-rule">features</div>
-          <div class="grid md:grid-cols-2 gap-4">
+          <div class="grid md:grid-cols-3 gap-4">
             <div
               v-for="g in groups"
               :key="g.label"
-              class="tui-card p-5"
+              class="tui-card p-6"
             >
               <div class="flex items-center gap-3 mb-4">
                 <span
-                  class="text-accent text-[11px] font-bold uppercase tracking-widest"
+                  class="text-accent text-xs font-bold uppercase tracking-widest"
                 >
                   {{ g.label }}
                 </span>
@@ -209,47 +217,25 @@ onMounted(() => {
                 <li
                   v-for="item in g.items"
                   :key="item"
-                  class="feature-item text-[13px]"
+                  class="feature-item"
                 >
                   {{ item }}
                 </li>
               </ul>
             </div>
           </div>
-        </div>
-
-        <!-- install -->
-        <div class="mt-10 md:mt-14">
-          <div class="tui-rule">install</div>
-          <p class="mb-4 text-sm leading-relaxed">
-            <span class="text-accent">#</span> users — sideload the apk from
-            <a href="https://github.com/jossephus/chuchu/releases">releases</a>.
-            no play store yet (payment limits in my country).
+          <p class="mt-6 text-muted text-xs leading-relaxed">
+             <span class="text-accent">~</span> uses: libghostty · libssh2 + openssl · Mosh · Kotlin + Jetpack Compose
           </p>
-          <div class="tui-card max-w-2xl">
-            <div class="px-4 py-2.5 border-b border-border text-[11px] text-muted flex justify-between">
-              <span>terminal</span>
-              <span>bash</span>
-            </div>
-            <pre class="p-4 overflow-x-auto text-[13px]"><code><span class="text-muted"># build from source</span>
-<span class="text-accent">$</span> nix develop
-<span class="text-accent">$</span> make build      <span class="text-muted"># zig + jni native</span>
-<span class="text-accent">$</span> make app        <span class="text-muted"># build apk + install</span></code></pre>
-          </div>
         </div>
 
         <!-- about -->
         <div class="mt-10 md:mt-14">
           <div class="tui-rule">about</div>
-          <p class="mb-3 text-sm leading-relaxed">
-            inspired by
-            <a href="https://github.com/vivy-company/vvterm">vvterm</a> on iOS —
-            chuchu is the android-native version i wanted to exist.
-          </p>
           <p class="text-muted text-sm">
-            <span class="text-warning">chuchu</span> is a character from the
+            <span class="text-accent font-bold">chuchu</span> is a character from the
             Amharic novel <em>Yesinbit Kelemat</em> —
-            <em>"colors of adios."</em>
+            <em>“colors of adios.”</em>
           </p>
         </div>
       </div>
