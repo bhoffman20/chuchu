@@ -87,11 +87,11 @@ That copies `libchuchu_jni.so` into `app/src/main/jniLibs/arm64-v8a/`.
 I have been using [vvterm](https://github.com/vivy-company/vvterm) on iOS for the past few weeks and i really liked it.  This project came from my desire to have native ssh client but for android.
 
 ## Project Name
-chuchu is one of my favorite characters from the amharic book [Yesinbit Kelemat](https://www.goodreads.com/book/show/30759971) [it means colors of adios]. 
+chuchu is one of my favorite characters from the amharic book [Yesinbit Kelemat](https://www.goodreads.com/book/show/30759971) [translated to colors of adios]. 
 
 ## Demo
 
 <p align="center">
-  <video src="./assets/chuchu_demo.mp4" width="400" autoplay loop muted playsinline></video>
+  <video src="./assets/chuchu_demo.gif" width="400" autoplay loop muted playsinline></video>
 </p>
 
