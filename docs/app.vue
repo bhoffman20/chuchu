@@ -26,7 +26,7 @@ const groups = [
     ],
   },
   {
-    label: 'built for thumbs',
+    label: 'optimized for phones',
     items: [
       'multi-session tabs with command palette',
       'configurable accessory key row',
@@ -53,13 +53,58 @@ function applyTheme(dark: boolean) {
   }
 }
 
-function toggleTheme() {
+let themeTransitionPending = false
+
+function toggleTheme(event?: MouseEvent) {
+  // Ignore taps that arrive mid-transition so we don't queue a second
+  // toggle on top of an in-flight one.
+  if (themeTransitionPending) return
+
   const time = (isDark.value ? darkVideo.value : lightVideo.value)?.currentTime ?? 0
-  applyTheme(!isDark.value)
-  nextTick(() => {
-    const target = isDark.value ? darkVideo.value : lightVideo.value
-    if (target) target.currentTime = time
-  })
+
+  const swap = () => {
+    applyTheme(!isDark.value)
+    nextTick(() => {
+      const target = isDark.value ? darkVideo.value : lightVideo.value
+      if (target) target.currentTime = time
+    })
+  }
+
+  // Set the reveal origin to the click position (falls back to center).
+  const root = document.documentElement
+  if (event) {
+    root.style.setProperty('--theme-x', `${event.clientX}px`)
+    root.style.setProperty('--theme-y', `${event.clientY}px`)
+  } else {
+    root.style.removeProperty('--theme-x')
+    root.style.removeProperty('--theme-y')
+  }
+
+  // Progressive enhancement: use the View Transitions API when available.
+  // @ts-expect-error — startViewTransition is not yet in lib.dom for all TS versions
+  if (typeof document.startViewTransition === 'function') {
+    themeTransitionPending = true
+    root.classList.add('theme-transitioning')
+
+    const release = () => {
+      themeTransitionPending = false
+      root.classList.remove('theme-transitioning')
+    }
+
+    // Safety net: if `finished` never resolves (e.g. transition is skipped
+    // by another navigation), still release the lock so the button stays
+    // responsive.
+    const timeoutId = window.setTimeout(release, 1000)
+
+    // @ts-expect-error — see above
+    const transition = document.startViewTransition(() => swap())
+    transition.finished.finally(() => {
+      clearTimeout(timeoutId)
+      release()
+    })
+  } else {
+    swap()
+  }
 }
 
 onMounted(() => {
@@ -92,11 +137,15 @@ onMounted(() => {
         </div>
         <div class="flex items-stretch text-muted">
           <button
-            class="seg hover:text-fg transition-colors cursor-pointer"
-            @click="toggleTheme"
+            class="seg theme-toggle cursor-pointer"
+            @click="toggleTheme($event)"
             :aria-label="isDark ? 'switch to light theme' : 'switch to dark theme'"
+            :title="isDark ? 'switch to light theme' : 'switch to dark theme'"
           >
-            {{ isDark ? 'light' : 'dark' }}
+            <span class="bracket">[</span>
+            <span class="icon" aria-hidden="true">{{ isDark ? '☀' : '☾' }}</span>
+            <span class="label">{{ isDark ? 'light' : 'dark' }}</span>
+            <span class="bracket">]</span>
           </button>
           <span class="seg hidden sm:inline-flex">~/chuchu</span>
           <span class="seg bg-surfaceVar text-fg">main</span>
