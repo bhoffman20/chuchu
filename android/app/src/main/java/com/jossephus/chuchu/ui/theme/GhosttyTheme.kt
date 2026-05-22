@@ -84,18 +84,27 @@ fun GhosttyTheme.toChuColorPalette(): ChuColorPalette {
     val isDark = background.luminance() < 0.5f
     val white = Color(0xFFFFFFFF)
     val black = Color(0xFF000000)
+    val contrast = if (isDark) white else black
 
-    val surface = if (isDark) background.mix(white, 0.15f) else background.mix(black, 0.15f)
-    val surfaceVariant = if (isDark) background.mix(black, 0.15f) else background.mix(white, 0.15f)
-    val border = background.mix(surface, 0.5f)
+    // Panels: lighter touch on light themes so pale sage/cream backgrounds
+    // don't get muddied; keep the existing weight on dark themes.
+    val surface = background.mix(contrast, if (isDark) 0.15f else 0.06f)
+    val surfaceVariant = background.mix(contrast, if (isDark) 0.04f else 0.02f)
+    // Borders need more punch on light themes — the eye is less forgiving
+    // of low-contrast outlines on bright backgrounds.
+    val border = background.mix(contrast, if (isDark) 0.22f else 0.28f)
 
     val textPrimary = foreground
-    val textSecondary = foreground.mix(background, 0.3f)
-    val textMuted = foreground.mix(background, 0.55f)
+    val textSecondary = foreground.mix(background, 0.28f)
+    val textMuted = foreground.mix(background, 0.5f)
 
-    val accent = palette[4]
-    val accentSecondary = palette[6]
-    val onAccent = if (accent.luminance() > 0.5f) background else white
+    // Brand accent is derived from the theme's own foreground rather than
+    // ANSI palette[4]. Borrowing ANSI blue makes every UI button clash with
+    // non-blue themes (sage, sepia, rose…); deriving from foreground gives
+    // the classic terminal "inverted text" button that always harmonises.
+    val accent = foreground.mix(background, if (isDark) 0.15f else 0.08f)
+    val accentSecondary = palette[4].mix(background, if (isDark) 0.15f else 0.35f)
+    val onAccent = background
 
     val disabledSurface = surface.mix(background, 0.5f)
     val disabledText = textMuted
