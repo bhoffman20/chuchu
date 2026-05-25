@@ -323,23 +323,31 @@ fn readChannel(alloc: std.mem.Allocator, session: *NativeSshSession, max_bytes: 
     const buf = alloc.alloc(u8, cap) catch return null;
     defer alloc.free(buf);
     var total_read: usize = 0;
-    while (true) {
-        const rc = c.libssh2_channel_read_ex(channel, 0, @ptrCast(buf.ptr + total_read), @intCast(buf.len - total_read));
-        if (rc == c.LIBSSH2_ERROR_EAGAIN) {
-            session.empty_reads +%= 1;
-            break;
-        }
-        if (rc == 0) {
-            break;
-        }
-        if (rc < 0) {
-            setLibssh2Error(session, "Read failed", @intCast(rc));
-            return null;
-        }
-        total_read += @intCast(rc);
-        if (total_read >= buf.len) {
+    var stalled_loops: u32 = 0;
+    // Read both stdout and stderr — exec channels may send
+    // diagnostics on stderr, blocking EOF if we ignore it.
+    const streams = [_]c_int{ 0, 1 };
+    for (streams) |stream_id| {
+        while (true) {
+            if (total_read >= buf.len) break;
+            const rc = c.libssh2_channel_read_ex(channel, stream_id, @ptrCast(buf.ptr + total_read), @intCast(buf.len - total_read));
+            if (rc == c.LIBSSH2_ERROR_EAGAIN) {
+                session.empty_reads +%= 1;
+                stalled_loops +%= 1;
+                if (stalled_loops > 16) break;
+                if (!waitSocket(session, io_wait_timeout_ms)) break;
+                continue;
+            }
+            if (rc == 0) {
+                break;
+            }
+            if (rc < 0) {
+                setLibssh2Error(session, "Read failed", @intCast(rc));
+                return null;
+            }
+            total_read += @intCast(rc);
             session.empty_reads = 0;
-            break;
+            stalled_loops = 0;
         }
     }
     if (total_read == 0) {
@@ -752,6 +760,10 @@ export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeOpenShell(
             return c.JNI_FALSE;
         }
     }
+    if (session.channel) |old_ch| {
+        _ = c.libssh2_channel_close(old_ch);
+        _ = c.libssh2_channel_free(old_ch);
+    }
     session.channel = channel;
     c.libssh2_channel_set_blocking(channel.?, 0);
     var term_buf = allocator.allocSentinel(u8, term_slice.len, 0) catch {
@@ -795,6 +807,78 @@ export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeOpenShell(
     c.libssh2_session_set_blocking(ssh_session, 0);
     c.libssh2_channel_set_blocking(channel.?, 0);
     return c.JNI_TRUE;
+}
+
+export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeOpenExec(env: *c.JNIEnv, thiz: c.jobject, handle: c.jlong, command: c.jstring) callconv(.c) c.jboolean {
+    _ = thiz;
+    const session = sessionFromHandle(handle) orelse return c.JNI_FALSE;
+    const ssh_session = session.session orelse {
+        setError(session, "Not connected", .{});
+        return c.JNI_FALSE;
+    };
+    const command_slice = jniDupString(env, command) orelse {
+        setError(session, "Missing exec command", .{});
+        return c.JNI_FALSE;
+    };
+    defer allocator.free(command_slice);
+    // Open a fresh session channel for the exec request. We do NOT request a
+    // PTY here — exec channels for non-interactive commands like
+    // `mosh-server new` should run without a TTY so the server can detach
+    // cleanly, write its output to stdout, and close the channel (giving us
+    // a real EOF signal instead of relying on a deadline).
+    var channel: ?*c.LIBSSH2_CHANNEL = null;
+    while (channel == null) {
+        channel = c.libssh2_channel_open_ex(ssh_session, "session", 7, c.LIBSSH2_CHANNEL_WINDOW_DEFAULT, c.LIBSSH2_CHANNEL_PACKET_DEFAULT, null, 0);
+        if (channel != null) break;
+        const open_rc = c.libssh2_session_last_errno(ssh_session);
+        if (open_rc != c.LIBSSH2_ERROR_EAGAIN) {
+            setLibssh2Error(session, "Channel open failed", open_rc);
+            return c.JNI_FALSE;
+        }
+        if (!waitSocket(session, setup_wait_timeout_ms)) {
+            setError(session, "Channel open timed out", .{});
+            return c.JNI_FALSE;
+        }
+    }
+    c.libssh2_channel_set_blocking(channel.?, 0);
+
+    while (true) {
+        const startup_rc = c.libssh2_channel_process_startup(channel.?, "exec", 4, command_slice.ptr, @intCast(command_slice.len));
+        if (startup_rc == 0) break;
+        if (startup_rc != c.LIBSSH2_ERROR_EAGAIN) {
+            setLibssh2Error(session, "Exec start failed", startup_rc);
+            _ = c.libssh2_channel_close(channel.?);
+            _ = c.libssh2_channel_free(channel.?);
+            return c.JNI_FALSE;
+        }
+        if (!waitSocket(session, setup_wait_timeout_ms)) {
+            setError(session, "Exec start timed out", .{});
+            _ = c.libssh2_channel_close(channel.?);
+            _ = c.libssh2_channel_free(channel.?);
+            return c.JNI_FALSE;
+        }
+    }
+    if (session.channel) |old_ch| {
+        _ = c.libssh2_channel_close(old_ch);
+        _ = c.libssh2_channel_free(old_ch);
+    }
+    session.channel = channel;
+    setSocketNonBlocking(session.socket_fd);
+    c.libssh2_session_set_blocking(ssh_session, 0);
+    c.libssh2_channel_set_blocking(channel.?, 0);
+    return c.JNI_TRUE;
+}
+
+export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeChannelEof(env: *c.JNIEnv, thiz: c.jobject, handle: c.jlong) callconv(.c) c.jboolean {
+    _ = env;
+    _ = thiz;
+    const session = sessionFromHandle(handle) orelse return c.JNI_TRUE;
+    const channel = session.channel orelse return c.JNI_TRUE;
+    // libssh2_channel_eof returns 1 when the remote sent EOF on the channel
+    // (e.g. mosh-server printed its CONNECT line and detached). Returning
+    // EOF as "true" lets the Kotlin bootstrap loop exit immediately on
+    // success instead of waiting out the full deadline.
+    return if (c.libssh2_channel_eof(channel) == 1) c.JNI_TRUE else c.JNI_FALSE;
 }
 
 export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeResize(env: *c.JNIEnv, thiz: c.jobject, handle: c.jlong, cols: c.jint, rows: c.jint, width_px: c.jint, height_px: c.jint) callconv(.c) c.jboolean {

@@ -205,6 +205,16 @@ class NativeSshService(
         }
     }
 
+    fun openExec(command: String): Boolean {
+        check(handle != 0L) { "Not connected" }
+        return bridge.nativeOpenExec(handle, command)
+    }
+
+    fun isChannelEof(): Boolean {
+        if (handle == 0L) return true
+        return bridge.nativeChannelEof(handle)
+    }
+
     fun resize(cols: Int, rows: Int, widthPx: Int, heightPx: Int) {
         if (handle == 0L) return
         if (!bridge.nativeResize(handle, cols, rows, widthPx, heightPx)) {
