@@ -631,7 +631,6 @@ class TerminalSessionEngine(
                 val chunk = nativeSsh.read(4096)
                 if (chunk != null && chunk.isNotEmpty()) {
                     val text = String(chunk, Charsets.UTF_8)
-                    Log.d("TerminalSession", "MOSH: SSH chunk: ${text.take(200)}")
                     outputBuffer.append(text)
                     val result = MoshBootstrapParser.parse(params.host, outputBuffer.toString())
                     if (result is MoshBootstrapParser.ParseResult.Success) {
@@ -649,7 +648,6 @@ class TerminalSessionEngine(
                                     put("useNetworkCrypto", true)
                                 }
                                 .toString()
-                        Log.d("TerminalSession", "MOSH: Creating mosh client with JSON: $configJson")
                         if (!moshService.create(configJson)) {
                             throw IllegalStateException("Failed to create mosh client")
                         }
@@ -691,13 +689,6 @@ class TerminalSessionEngine(
                 } else {
                     rawOutput.trim()
                 }
-            val outputPreview =
-                if (rawOutput.isBlank()) {
-                    "<empty>"
-                } else {
-                    rawOutput.replace("\r", "\\r").replace("\n", "\\n").take(500)
-                }
-            Log.e("TerminalSession", "MOSH: Bootstrap raw output preview: $outputPreview")
             Log.e("TerminalSession", "MOSH: Bootstrap failed: $reason")
             throw IllegalStateException(reason)
         }
