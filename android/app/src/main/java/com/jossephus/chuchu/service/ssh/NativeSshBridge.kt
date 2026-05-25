@@ -49,6 +49,10 @@ class NativeSshBridge {
         term: String,
     ): Boolean
 
+    external fun nativeOpenExec(handle: Long, command: String): Boolean
+
+    external fun nativeChannelEof(handle: Long): Boolean
+
     external fun nativeResize(
         handle: Long,
         cols: Int,

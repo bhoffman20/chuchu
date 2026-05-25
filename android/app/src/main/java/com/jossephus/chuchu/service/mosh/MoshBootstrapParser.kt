@@ -53,11 +53,18 @@ object MoshBootstrapParser {
             }
         }
 
+        val lower = normalized.lowercase()
         return ParseResult.Error(
-            if (normalized.contains("mosh-server", ignoreCase = true)) {
-                "Server output missing valid MOSH CONNECT line"
-            } else {
-                "mosh-server not found on remote host"
+            when {
+                lower.contains("command not found") && lower.contains("mosh-server") -> {
+                    "mosh-server not found on remote host"
+                }
+                normalized.isBlank() -> {
+                    "No MOSH bootstrap output received"
+                }
+                else -> {
+                    "Server output missing valid MOSH CONNECT line"
+                }
             }
         )
     }

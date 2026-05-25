@@ -606,67 +606,98 @@ class TerminalSessionEngine(
             privateKeyPem = params.privateKeyPem,
             keyPassphrase = params.keyPassphrase,
         )
-        nativeSsh.openShell(cols, rows, screenWidth, screenHeight)
-        Log.d("TerminalSession", "MOSH: SSH connected, shell opened")
+        // Use exec channel to bypass shell init noise and MOTD.
+        // Falls back to shell if the remote server doesn't support exec.
+        val moshCommand = "env LANG=C.UTF-8 LC_ALL=C.UTF-8 mosh-server new -s -c 256"
+        val execOpened = runCatching { nativeSsh.openExec(moshCommand) }.getOrDefault(false)
+        if (!execOpened) {
+            Log.w("TerminalSession", "MOSH: exec channel unavailable, falling back to shell")
+            nativeSsh.openShell(cols, rows, screenWidth, screenHeight)
+            val fallback = "$moshCommand\n"
+            nativeSsh.write(fallback.toByteArray(Charsets.UTF_8))
+        }
+        Log.d(
+            "TerminalSession",
+            "MOSH: SSH connected, ${if (execOpened) "exec" else "shell"} channel opened",
+        )
 
-        // Send the mosh-server command and collect output
-        val command = "mosh-server new -s -c 256 -l LC_ALL=en_US.UTF-8\n"
-        nativeSsh.write(command.toByteArray(Charsets.UTF_8))
-        Log.d("TerminalSession", "MOSH: Sent mosh-server command")
-
-        // Read output until we find MOSH CONNECT or timeout
+        // Read output until we find MOSH CONNECT, the channel hits EOF, or
+        // we time out. If the first window has no output and no EOF on exec,
+        // extend once to distinguish slow remote bootstrap from hard failure.
         val outputBuffer = StringBuilder()
-        val deadline = System.currentTimeMillis() + 10_000
-        var found = false
-        while (System.currentTimeMillis() < deadline) {
-            val chunk = nativeSsh.read(4096)
-            if (chunk != null && chunk.isNotEmpty()) {
-                val text = String(chunk, Charsets.UTF_8)
-                Log.d("TerminalSession", "MOSH: SSH chunk: ${text.take(200)}")
-                outputBuffer.append(text)
-                val result = MoshBootstrapParser.parse(params.host, outputBuffer.toString())
-                if (result is MoshBootstrapParser.ParseResult.Success) {
-                    found = true
-                    Log.d(
-                        "TerminalSession",
-                        "MOSH: Parsed endpoint host=${result.endpoint.host} port=${result.endpoint.port}",
-                    )
-                    nativeSsh.close()
-
-                    val configJson =
-                        JSONObject()
-                            .apply {
-                                put("host", result.endpoint.host)
-                                put("port", result.endpoint.port)
-                                put("keyBase64_22", result.endpoint.key)
-                                put("useNetworkCrypto", true)
-                            }
-                            .toString()
-                    Log.d("TerminalSession", "MOSH: Creating mosh client with JSON: $configJson")
-                    if (!moshService.create(configJson)) {
-                        throw IllegalStateException("Failed to create mosh client")
+        suspend fun readBootstrapWindow(timeoutMs: Long): Boolean {
+            val deadline = System.currentTimeMillis() + timeoutMs
+            while (System.currentTimeMillis() < deadline) {
+                val chunk = nativeSsh.read(4096)
+                if (chunk != null && chunk.isNotEmpty()) {
+                    val text = String(chunk, Charsets.UTF_8)
+                    Log.d("TerminalSession", "MOSH: SSH chunk: ${text.take(200)}")
+                    outputBuffer.append(text)
+                    val result = MoshBootstrapParser.parse(params.host, outputBuffer.toString())
+                    if (result is MoshBootstrapParser.ParseResult.Success) {
+                        Log.d(
+                            "TerminalSession",
+                            "MOSH: Parsed endpoint host=${result.endpoint.host} port=${result.endpoint.port}",
+                        )
+                        nativeSsh.close()
+                        val configJson =
+                            JSONObject()
+                                .apply {
+                                    put("host", result.endpoint.host)
+                                    put("port", result.endpoint.port)
+                                    put("keyBase64_22", result.endpoint.key)
+                                    put("useNetworkCrypto", true)
+                                }
+                                .toString()
+                        Log.d("TerminalSession", "MOSH: Creating mosh client with JSON: $configJson")
+                        if (!moshService.create(configJson)) {
+                            throw IllegalStateException("Failed to create mosh client")
+                        }
+                        Log.d("TerminalSession", "MOSH: mosh client created, starting...")
+                        if (!moshService.start()) {
+                            throw IllegalStateException("Failed to start mosh client")
+                        }
+                        Log.d("TerminalSession", "MOSH: mosh client started, resizing $cols x $rows")
+                        moshService.resize(cols, rows)
+                        return true
                     }
-                    Log.d("TerminalSession", "MOSH: mosh client created, starting...")
-                    if (!moshService.start()) {
-                        throw IllegalStateException("Failed to start mosh client")
+                } else {
+                    if (execOpened && nativeSsh.isChannelEof()) {
+                        Log.d("TerminalSession", "MOSH: exec channel EOF reached")
+                        return false
                     }
-                    Log.d("TerminalSession", "MOSH: mosh client started, resizing $cols x $rows")
-                    moshService.resize(cols, rows)
-                    break
+                    delay(50)
                 }
-            } else {
-                delay(50)
             }
+            return false
+        }
+
+        var found = readBootstrapWindow(timeoutMs = 10_000)
+        if (!found && execOpened && outputBuffer.isEmpty() && !nativeSsh.isChannelEof()) {
+            Log.w("TerminalSession", "MOSH: bootstrap still running after 10s with no output; extending window by 15s")
+            found = readBootstrapWindow(timeoutMs = 15_000)
         }
         if (!found) {
+            val eofBeforeClose = if (execOpened) nativeSsh.isChannelEof() else true
             nativeSsh.close()
-            val result = MoshBootstrapParser.parse(params.host, outputBuffer.toString())
+            val rawOutput = outputBuffer.toString()
             val reason =
-                if (result is MoshBootstrapParser.ParseResult.Error) {
-                    result.reason
+                if (rawOutput.isBlank()) {
+                    if (execOpened && !eofBeforeClose) {
+                        "Mosh bootstrap command still running after timeout (no output, no EOF)"
+                    } else {
+                        "Mosh bootstrap produced no output"
+                    }
                 } else {
-                    "Mosh bootstrap timeout"
+                    rawOutput.trim()
                 }
+            val outputPreview =
+                if (rawOutput.isBlank()) {
+                    "<empty>"
+                } else {
+                    rawOutput.replace("\r", "\\r").replace("\n", "\\n").take(500)
+                }
+            Log.e("TerminalSession", "MOSH: Bootstrap raw output preview: $outputPreview")
             Log.e("TerminalSession", "MOSH: Bootstrap failed: $reason")
             throw IllegalStateException(reason)
         }
