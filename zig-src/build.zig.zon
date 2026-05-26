@@ -3,8 +3,8 @@
     .version = "0.0.0",
     .dependencies = .{
         .ghostty = .{
-            .url = "git+https://github.com/ghostty-org/ghostty#fdb6e3d2c8543e2e756b7e07f44372efbc0fba4b",
-            .hash = "ghostty-1.3.2-dev-5UdBCx38BQW4V7wU7EIInkclON7q7a8bElNtNMPukli_",
+            .url = "git+https://github.com/ghostty-org/ghostty#a746d0f7281954eb251915f4cd9fcea4924ad999",
+            .hash = "ghostty-1.3.2-dev-5UdBC4aaEQVBspo81eyoKCFIEVCHBbbZxLh7jzc1kOum",
         },
         .zigimg = .{
             .url = "git+https://github.com/zigimg/zigimg?ref=zig-0.15#7b98e82621fe302a9edc147df1191f4d1b7ff7a5",
