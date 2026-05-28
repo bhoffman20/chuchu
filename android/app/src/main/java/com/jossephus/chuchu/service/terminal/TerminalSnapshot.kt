@@ -96,14 +96,10 @@ data class TerminalSnapshot(
         private fun packArgb(r: Int, g: Int, b: Int): Int =
             (0xFF shl 24) or (r shl 16) or (g shl 8) or b
 
-        private var parseCalls: Long = 0
-        private var parseTotalNs: Long = 0
-
         fun fromByteBuffer(
             buffer: ByteBuffer,
             images: List<ImagePlacement> = emptyList(),
         ): TerminalSnapshot {
-            val t0 = System.nanoTime()
             val wrapped = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN)
             wrapped.position(0)
 
@@ -207,22 +203,7 @@ data class TerminalSnapshot(
                 images = images,
             )
 
-            val elapsedNs = System.nanoTime() - t0
-            parseCalls++
-            parseTotalNs += elapsedNs
-            if (elapsedNs >= 8_000_000L) {
-                val avgMs = if (parseCalls > 0) (parseTotalNs / parseCalls) / 1_000_000.0 else 0.0
-                perfLog(
-                    "snapshot_parse SLOW total=${"%.2f".format(elapsedNs / 1_000_000.0)}ms avg=${"%.2f".format(avgMs)}ms " +
-                        "grid=${cols}x${rows} cells=$cellCount extras=${graphemeExtras.size} cap=${buffer.capacity()}",
-                )
-            }
-
             return snapshot
-        }
-
-        private fun perfLog(message: String) {
-            runCatching { Log.w("TerminalPerf", message) }
         }
 
         fun parseImages(buffer: ByteBuffer?): List<ImagePlacement> {
