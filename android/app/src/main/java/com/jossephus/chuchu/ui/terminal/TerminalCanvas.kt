@@ -7,8 +7,7 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
-import android.os.SystemClock
-import android.util.Log
+
 import androidx.core.content.res.ResourcesCompat
 import android.view.ViewConfiguration
 import androidx.compose.foundation.Canvas
@@ -137,7 +136,6 @@ fun TerminalCanvas(
         }
     }
     val drawBuffer = remember { StringBuilder(256) }
-    val canvasPerfTracker = remember { CanvasPerfTracker() }
     val singleGlyphCache = remember {
         HashMap<Int, String>(256).apply {
             for (cp in 33..126) this[cp] = cp.toChar().toString()
@@ -400,7 +398,6 @@ fun TerminalCanvas(
         }
 
     Canvas(modifier = canvasModifier) {
-        val frameStartNs = SystemClock.elapsedRealtimeNanos()
         val cols = max(snapshot.cols, 1)
         val rows = max(snapshot.rows, 1)
         val cellWidth = cellWidthPx
@@ -627,15 +624,6 @@ fun TerminalCanvas(
             }
             nCanvas.restore()
         }
-        val frameEndNs = SystemClock.elapsedRealtimeNanos()
-        canvasPerfTracker.record(
-            drawNs = frameEndNs - frameStartNs,
-            cols = snapshot.cols,
-            rows = snapshot.rows,
-            extras = snapshot.graphemeExtras.size,
-            images = snapshot.images.size,
-            selectionActive = selection != null,
-        )
     }
 }
 
@@ -818,32 +806,6 @@ private fun isNerdFontPrivateUse(cp: Int): Boolean {
         (cp in 0x100000..0x10FFFD)
 }
 
-private class CanvasPerfTracker {
-    private var calls: Long = 0
-    private var totalNs: Long = 0
-
-    fun record(
-        drawNs: Long,
-        cols: Int,
-        rows: Int,
-        extras: Int,
-        images: Int,
-        selectionActive: Boolean,
-    ) {
-        calls++
-        totalNs += drawNs
-        val now = SystemClock.elapsedRealtimeNanos()
-        val slow = drawNs >= 16_000_000L
-        if (!slow) return
-
-        val avgMs = if (calls > 0) (totalNs / calls) / 1_000_000.0 else 0.0
-        Log.w(
-            "TerminalPerf",
-            "canvas_draw SLOW total=${"%.2f".format(drawNs / 1_000_000.0)}ms avg=${"%.2f".format(avgMs)}ms " +
-                "grid=${cols}x$rows extras=$extras images=$images selection=$selectionActive calls=$calls",
-        )
-    }
-}
 
 /** Tracks double-tap timing/position without triggering Compose recomposition. */
 private class DoubleTapState {
