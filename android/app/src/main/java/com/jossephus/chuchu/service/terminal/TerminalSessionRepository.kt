@@ -73,10 +73,12 @@ class TerminalSessionRepository private constructor(application: Application) {
             .stateIn(scope, SharingStarted.Eagerly, emptySet())
 
     private var attachedClients = 0
+    private var foregroundServiceRunning = false
+    private var foregroundNotificationLabel: String? = null
 
     init {
         scope.launch {
-            _tabs
+            combine(_tabs, _activeTabId) { tabs, _ -> tabs }
                 .flatMapLatest { tabs ->
                     if (tabs.isEmpty()) {
                         flowOf(emptyList())
@@ -93,10 +95,15 @@ class TerminalSessionRepository private constructor(application: Application) {
                                 state.status == SessionStatus.Connected ||
                                 state.status == SessionStatus.Reconnecting
                         }
-                    if (anyAlive) {
-                        SessionForegroundService.start(appContext, currentNotificationLabel())
-                    } else {
+                    val label = if (anyAlive) currentNotificationLabel() else null
+                    if (anyAlive && (!foregroundServiceRunning || foregroundNotificationLabel != label)) {
+                        SessionForegroundService.start(appContext, label ?: "Active session")
+                        foregroundServiceRunning = true
+                        foregroundNotificationLabel = label
+                    } else if (!anyAlive && foregroundServiceRunning) {
                         SessionForegroundService.stop(appContext)
+                        foregroundServiceRunning = false
+                        foregroundNotificationLabel = null
                     }
                 }
         }
@@ -113,7 +120,7 @@ class TerminalSessionRepository private constructor(application: Application) {
     private fun currentNotificationLabel(): String {
         val tabs = _tabs.value
         if (tabs.isEmpty()) return "Active session"
-        val active = activeTab.value ?: tabs.first()
+        val active = tabs.firstOrNull { it.id == _activeTabId.value } ?: tabs.first()
         if (tabs.size == 1) return active.spec.notificationLabel
         return "${tabs.size} sessions  ·  ${active.spec.notificationLabel}"
     }
