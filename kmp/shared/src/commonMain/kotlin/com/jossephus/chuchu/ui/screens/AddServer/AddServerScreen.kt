@@ -1,16 +1,11 @@
 package com.jossephus.chuchu.ui.screens.AddServer
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,21 +17,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jossephus.chuchu.model.AuthMethod
+import com.jossephus.chuchu.model.SshKey
 import com.jossephus.chuchu.model.Transport
 import com.jossephus.chuchu.ui.components.ChuButton
 import com.jossephus.chuchu.ui.components.ChuButtonVariant
-import com.jossephus.chuchu.ui.components.ChuDialog
 import com.jossephus.chuchu.ui.components.ChuSegmentedControl
 import com.jossephus.chuchu.ui.components.ChuSwitch
 import com.jossephus.chuchu.ui.components.ChuText
@@ -46,18 +41,30 @@ import com.jossephus.chuchu.ui.theme.ChuTypography
 
 @Composable
 fun AddServerScreen(
-    vm: AddServerViewModel,
+    form: AddServerForm,
+    testState: ConnectionTestState,
+    keys: List<SshKey>,
+    onUpdateName: (String) -> Unit,
+    onUpdateHost: (String) -> Unit,
+    onUpdatePort: (String) -> Unit,
+    onUpdateUsername: (String) -> Unit,
+    onUpdatePassword: (String) -> Unit,
+    onUpdateTransport: (Transport) -> Unit,
+    onUpdateAuthMethod: (AuthMethod) -> Unit,
+    onUpdateKeyPassphrase: (String) -> Unit,
+    onUpdateRequireAuthOnConnect: (Boolean) -> Unit,
+    onUpdatePostConnectCommand: (String) -> Unit,
+    onGenerateKey: () -> Unit,
+    onCopyPublicKey: () -> Unit,
+    onTestConnection: () -> Unit,
+    onSave: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val form by vm.form.collectAsStateWithLifecycle()
-    val testState by vm.testState.collectAsStateWithLifecycle()
-    val keys by vm.keys.collectAsStateWithLifecycle()
     val colors = ChuColors.current
     val typography = ChuTypography.current
 
     val scrollState = rememberScrollState()
-    val context = LocalContext.current
     var showAdditionalSettings by remember { mutableStateOf(false) }
     Column(
         modifier = modifier
@@ -68,7 +75,7 @@ fun AddServerScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             ChuText("$ ", style = typography.headline, color = colors.textMuted)
             ChuText("add server", style = typography.headline)
         }
@@ -76,7 +83,7 @@ fun AddServerScreen(
         SectionHeader("CONNECTION")
         ChuTextField(
             value = form.name,
-            onValueChange = vm::updateName,
+            onValueChange = onUpdateName,
             label = "Name",
             placeholder = "My server",
             singleLine = true,
@@ -85,7 +92,7 @@ fun AddServerScreen(
         )
         ChuTextField(
             value = form.host,
-            onValueChange = vm::updateHost,
+            onValueChange = onUpdateHost,
             label = "Host",
             placeholder = "192.168.1.10",
             singleLine = true,
@@ -95,7 +102,7 @@ fun AddServerScreen(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ChuTextField(
                 value = form.port,
-                onValueChange = vm::updatePort,
+                onValueChange = onUpdatePort,
                 label = "Port",
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -104,7 +111,7 @@ fun AddServerScreen(
             )
             ChuTextField(
                 value = form.username,
-                onValueChange = vm::updateUsername,
+                onValueChange = onUpdateUsername,
                 label = "Username",
                 placeholder = "root",
                 singleLine = true,
@@ -124,7 +131,7 @@ fun AddServerScreen(
                 Transport.Mosh to "mosh",
             ),
             selected = form.transport,
-            onSelect = vm::updateTransport,
+            onSelect = onUpdateTransport,
         )
         if (form.transport == Transport.TailscaleSSH) {
             ChuText(
@@ -142,8 +149,8 @@ fun AddServerScreen(
             else -> listOf(AuthMethod.Password, AuthMethod.Key)
         }
         if (form.authMethod == AuthMethod.None && form.transport != Transport.TailscaleSSH) {
-            androidx.compose.runtime.SideEffect {
-                vm.updateAuthMethod(AuthMethod.Password)
+            SideEffect {
+                onUpdateAuthMethod(AuthMethod.Password)
             }
         }
         val segmentSelected = if (form.authMethod == AuthMethod.KeyWithPassphrase) AuthMethod.Key else form.authMethod
@@ -155,14 +162,14 @@ fun AddServerScreen(
                 AuthMethod.None to "none",
             ),
             selected = segmentSelected,
-            onSelect = vm::updateAuthMethod,
+            onSelect = onUpdateAuthMethod,
         )
 
         when (form.authMethod) {
             AuthMethod.Password -> {
                 ChuTextField(
                     value = form.password,
-                    onValueChange = vm::updatePassword,
+                    onValueChange = onUpdatePassword,
                     label = "Password",
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
@@ -174,30 +181,22 @@ fun AddServerScreen(
                 KeyAuthSection(
                     form = form,
                     keys = keys,
-                    onGenerate = { vm.generateKey(form.name) },
-                    onCopyPublicKey = {
-                        if (form.publicKeyOpenSsh.isBlank()) {
-                            Toast.makeText(context, "No public key available", Toast.LENGTH_SHORT).show()
-                        } else {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("SSH Public Key", form.publicKeyOpenSsh))
-                            Toast.makeText(context, "Public key copied", Toast.LENGTH_SHORT).show()
-                        }
-                    },
+                    onGenerate = onGenerateKey,
+                    onCopyPublicKey = onCopyPublicKey,
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     ChuSwitch(
                         checked = form.authMethod == AuthMethod.KeyWithPassphrase,
                         onCheckedChange = { checked ->
                             if (checked) {
-                                vm.updateAuthMethod(AuthMethod.KeyWithPassphrase)
+                                onUpdateAuthMethod(AuthMethod.KeyWithPassphrase)
                             } else {
-                                vm.updateAuthMethod(AuthMethod.Key)
-                                vm.updateKeyPassphrase("")
+                                onUpdateAuthMethod(AuthMethod.Key)
+                                onUpdateKeyPassphrase("")
                             }
                         },
                     )
@@ -206,7 +205,7 @@ fun AddServerScreen(
                 if (form.authMethod == AuthMethod.KeyWithPassphrase) {
                     ChuTextField(
                         value = form.keyPassphrase,
-                        onValueChange = vm::updateKeyPassphrase,
+                        onValueChange = onUpdateKeyPassphrase,
                         label = "Passphrase",
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
@@ -242,32 +241,32 @@ fun AddServerScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 ChuText("require biometric auth", style = typography.label)
                 ChuSwitch(
                     checked = form.requireAuthOnConnect,
-                    onCheckedChange = vm::updateRequireAuthOnConnect,
+                    onCheckedChange = onUpdateRequireAuthOnConnect,
                 )
             }
             SectionDivider()
             PostConnectActionSection(
                 command = form.postConnectCommand,
-                onCommandChange = vm::updatePostConnectCommand,
+                onCommandChange = onUpdatePostConnectCommand,
             )
             SectionDivider()
         }
 
         val canTest = form.host.isNotBlank() && form.username.isNotBlank()
         ChuButton(
-            onClick = vm::testConnection,
+            onClick = onTestConnection,
             enabled = canTest,
             variant = ChuButtonVariant.Outlined,
             bracketed = true,
             modifier = Modifier.fillMaxWidth(),
         ) {
             val label = when (testState.status) {
-                ConnectionTestStatus.Running -> "testing…"
+                ConnectionTestStatus.Running -> "testing\u2026"
                 else -> "test connection"
             }
             ChuText(label, style = typography.label)
@@ -281,7 +280,7 @@ fun AddServerScreen(
         }
 
         ChuButton(
-            onClick = { vm.save(onBack) },
+            onClick = onSave,
             enabled = form.canSave(),
             variant = ChuButtonVariant.Outlined,
             bracketed = true,
@@ -307,8 +306,8 @@ private fun SectionDivider() {
 private fun SectionHeader(label: String) {
     val colors = ChuColors.current
     val typography = ChuTypography.current
-    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-        ChuText("── ", style = typography.labelSmall, color = colors.textMuted)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        ChuText("\u2500\u2500 ", style = typography.labelSmall, color = colors.textMuted)
         ChuText(label, style = typography.labelSmall, color = colors.textMuted)
         ChuText(" ", style = typography.labelSmall, color = colors.textMuted)
         Box(
@@ -323,7 +322,7 @@ private fun SectionHeader(label: String) {
 @Composable
 private fun KeyAuthSection(
     form: AddServerForm,
-    keys: List<com.jossephus.chuchu.model.SshKey>,
+    keys: List<SshKey>,
     onGenerate: () -> Unit,
     onCopyPublicKey: () -> Unit,
 ) {
@@ -332,8 +331,8 @@ private fun KeyAuthSection(
     val selectedKey = keys.firstOrNull { it.id == form.keyId }
 
     if (selectedKey != null) {
-        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            ChuText("● ", style = typography.body, color = colors.accent)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ChuText("\u25CF ", style = typography.body, color = colors.accent)
             ChuText(selectedKey.name, style = typography.body, color = colors.textPrimary)
         }
         Row(

@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.jossephus.chuchu.data.db.AppDatabase
+import com.jossephus.chuchu.data.db.getAppDatabase
 import com.jossephus.chuchu.data.repository.HostRepository
 import com.jossephus.chuchu.model.HostProfile
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,7 @@ import kotlinx.coroutines.launch
 class ServerListViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
-    private val db = AppDatabase.getInstance(application)
+    private val db = getAppDatabase(application)
     private val hostRepository = HostRepository(db.hostProfileDao())
 
     private val searchQuery = MutableStateFlow("")

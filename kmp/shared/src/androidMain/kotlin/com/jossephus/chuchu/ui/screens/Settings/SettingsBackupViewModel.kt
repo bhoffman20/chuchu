@@ -12,6 +12,7 @@ import com.jossephus.chuchu.data.backup.BackupPayload
 import com.jossephus.chuchu.data.backup.ChuchuBackupRepository
 import com.jossephus.chuchu.data.backup.InvalidBackupPassphraseException
 import com.jossephus.chuchu.data.db.AppDatabase
+import com.jossephus.chuchu.data.db.getAppDatabase
 import com.jossephus.chuchu.model.HostProfile
 import com.jossephus.chuchu.model.SshKey
 import com.jossephus.chuchu.service.backup.ChuchuBackupCodec
@@ -42,7 +43,7 @@ class SettingsBackupViewModel(
             }
     }
 
-    private val db = AppDatabase.getInstance(application)
+    private val db = getAppDatabase(application)
     private val backupRepo = ChuchuBackupRepository(db)
 
     private val _keys = MutableStateFlow<List<SshKey>>(emptyList())

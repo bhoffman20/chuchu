@@ -10,9 +10,3 @@ class TabSession(
     val sessionState: StateFlow<SessionState> get() = engine.state
     val hostKeyPrompt: StateFlow<HostKeyPrompt?> get() = engine.hostKeyPrompt
 }
-
-data class TabDescriptor(
-    val id: String,
-    val hostId: Long?,
-    val label: String,
-)

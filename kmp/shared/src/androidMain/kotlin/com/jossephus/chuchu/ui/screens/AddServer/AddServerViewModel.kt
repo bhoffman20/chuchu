@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.jossephus.chuchu.data.db.AppDatabase
+import com.jossephus.chuchu.data.db.getAppDatabase
 import com.jossephus.chuchu.data.repository.HostRepository
 import com.jossephus.chuchu.data.repository.SshKeyRepository
 import com.jossephus.chuchu.model.AuthMethod
@@ -40,7 +41,7 @@ class AddServerViewModel(
             }
     }
 
-    private val db = AppDatabase.getInstance(application)
+    private val db = getAppDatabase(application)
     private val hostRepository = HostRepository(db.hostProfileDao())
     private val sshKeyRepository = SshKeyRepository(db.sshKeyDao())
     private val keyGenerator = Ed25519KeyGenerator()
@@ -256,41 +257,3 @@ class AddServerViewModel(
         }
     }
 }
-
-data class AddServerForm(
-    val id: Long? = null,
-    val name: String = "",
-    val host: String = "",
-    val port: String = "22",
-    val username: String = "",
-    val password: String = "",
-    val keyId: Long? = null,
-    val privateKeyPem: String = "",
-    val publicKeyOpenSsh: String = "",
-    val keyPassphrase: String = "",
-    val transport: Transport = Transport.SSH,
-    val authMethod: AuthMethod = AuthMethod.Password,
-    val requireAuthOnConnect: Boolean = false,
-    val postConnectCommand: String = "",
-)
-
-fun AddServerForm.canSave(): Boolean {
-    if (name.isBlank() || host.isBlank() || username.isBlank()) return false
-    return when (authMethod) {
-        AuthMethod.Key,
-        AuthMethod.KeyWithPassphrase -> keyId != null && privateKeyPem.isNotBlank()
-        else -> true
-    }
-}
-
-enum class ConnectionTestStatus {
-    Idle,
-    Running,
-    Success,
-    Error,
-}
-
-data class ConnectionTestState(
-    val status: ConnectionTestStatus = ConnectionTestStatus.Idle,
-    val message: String? = null,
-)

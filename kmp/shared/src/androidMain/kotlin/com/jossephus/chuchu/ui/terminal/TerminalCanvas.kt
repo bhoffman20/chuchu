@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
 import com.jossephus.chuchu.service.terminal.TerminalSnapshot
 import com.jossephus.chuchu.ui.theme.LocalChuFont
+import com.jossephus.chuchu.ui.theme.getFontResourceId
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -85,7 +86,7 @@ fun TerminalCanvas(
     val doubleTapSlopPx = remember(androidViewConfiguration) { androidViewConfiguration.scaledDoubleTapSlop.toFloat() }
     val primaryTypeface = remember(context, fontOption) {
         runCatching {
-            ResourcesCompat.getFont(context, fontOption.regularFontResId)
+            ResourcesCompat.getFont(context, getFontResourceId(fontOption))
                 ?: Typeface.MONOSPACE
         }.getOrDefault(Typeface.MONOSPACE)
     }

@@ -1,6 +1,5 @@
 package com.jossephus.chuchu.ui.screens.Settings
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +32,9 @@ import com.jossephus.chuchu.ui.theme.ChuColors
 import com.jossephus.chuchu.ui.theme.ChuTypography
 import com.jossephus.chuchu.ui.theme.ThemeMode
 
+@Composable
+expect fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit)
+
 enum class SettingsCategory(val label: String) {
     General("general"),
     Terminal("terminal"),
@@ -58,9 +60,10 @@ fun SettingsScreen(
     onAccessoryLayoutChanged: (List<String>) -> Unit,
     onAccessoryBarSingleRowChanged: (Boolean) -> Unit,
     onTerminalCustomActionsChanged: (List<TerminalCustomKeyGroup>) -> Unit,
-    backupViewModel: SettingsBackupViewModel? = null,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    themeSelectorContent: @Composable (darkThemeName: String, onDarkThemeSelected: (String) -> Unit, lightThemeName: String, onLightThemeSelected: (String) -> Unit, themeMode: ThemeMode, onThemeModeChanged: (ThemeMode) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
+    backupSheetContent: (@Composable (visible: Boolean, onDismiss: () -> Unit) -> Unit)? = null,
 ) {
     val colors = ChuColors.current
     val typography = ChuTypography.current
@@ -69,12 +72,9 @@ fun SettingsScreen(
     var showCustomActionEditor by remember { mutableStateOf(false) }
     var showBackupSheet by remember { mutableStateOf(false) }
 
-    BackHandler(enabled = true) {
+    PlatformBackHandler(enabled = true) {
         when {
-            showBackupSheet -> {
-                backupViewModel?.dismissSheet()
-                showBackupSheet = false
-            }
+            showBackupSheet -> showBackupSheet = false
             showCustomActionEditor -> showCustomActionEditor = false
             showAccessoryEditor -> showAccessoryEditor = false
             else -> onBack()
@@ -156,6 +156,7 @@ fun SettingsScreen(
                         onAppLockEnabledChanged = onAppLockEnabledChanged,
                         onRequireAuthOnConnectChanged = onRequireAuthOnConnectChanged,
                         onOpenBackup = { showBackupSheet = true },
+                        themeSelectorContent = themeSelectorContent,
                     )
                     SettingsCategory.Terminal -> TerminalSettings(
                         currentAccessoryLayoutIds = currentAccessoryLayoutIds,
@@ -186,12 +187,8 @@ fun SettingsScreen(
             onDismiss = { showCustomActionEditor = false },
         )
 
-        if (backupViewModel != null) {
-            SshBackupSheet(
-                visible = showBackupSheet,
-                viewModel = backupViewModel,
-                onDismiss = { showBackupSheet = false },
-            )
+        if (backupSheetContent != null) {
+            backupSheetContent(showBackupSheet) { showBackupSheet = false }
         }
     }
 }
@@ -211,17 +208,11 @@ private fun GeneralSettings(
     onAppLockEnabledChanged: (Boolean) -> Unit,
     onRequireAuthOnConnectChanged: (Boolean) -> Unit,
     onOpenBackup: () -> Unit = {},
+    themeSelectorContent: @Composable (darkThemeName: String, onDarkThemeSelected: (String) -> Unit, lightThemeName: String, onLightThemeSelected: (String) -> Unit, themeMode: ThemeMode, onThemeModeChanged: (ThemeMode) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
 ) {
     val typography = ChuTypography.current
     val colors = ChuColors.current
-    ThemeSelectorSection(
-        darkThemeName = currentTheme,
-        onDarkThemeSelected = onThemeSelected,
-        lightThemeName = lightThemeName,
-        onLightThemeSelected = onLightThemeSelected,
-        themeMode = themeMode,
-        onThemeModeChanged = onThemeModeChanged,
-    )
+    themeSelectorContent(currentTheme, onThemeSelected, lightThemeName, onLightThemeSelected, themeMode, onThemeModeChanged)
     Spacer(modifier = Modifier.height(16.dp))
     FontSelectorSection(
         currentFont = currentFont,

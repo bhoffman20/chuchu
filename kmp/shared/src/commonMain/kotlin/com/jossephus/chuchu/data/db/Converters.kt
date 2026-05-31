@@ -16,5 +16,4 @@ class Converters {
 
     @TypeConverter
     fun toAuthMethod(value: String): AuthMethod = AuthMethod.valueOf(value)
-
 }

@@ -5,11 +5,9 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.jossephus.chuchu.shared.R
 
 @Immutable
 data class ChuTypeScale(
@@ -24,12 +22,11 @@ data class ChuTypeScale(
 enum class ChuFontOption(
     val id: String,
     val label: String,
-    val regularFontResId: Int,
 ) {
-    JetBrainsMono("jetbrains_mono", "JetBrains Mono", R.font.jetbrains_mono_regular),
-    FiraCode("fira_code", "Fira Code", R.font.fira_code_regular),
-    Hack("hack", "Hack", R.font.hack_regular),
-    GeistMono("geist_mono", "Geist Mono", R.font.geist_mono_regular),
+    JetBrainsMono("jetbrains_mono", "JetBrains Mono"),
+    FiraCode("fira_code", "Fira Code"),
+    Hack("hack", "Hack"),
+    GeistMono("geist_mono", "Geist Mono"),
     ;
 
     companion object {
@@ -42,15 +39,11 @@ enum class ChuFontOption(
     }
 }
 
-val ChuSymbolsFontFamily: FontFamily = FontFamily(
-    Font(R.font.symbols_nerd_font_mono_regular, FontWeight.Normal),
-)
+expect val ChuSymbolsFontFamily: FontFamily
 
-private fun monoFamily(option: ChuFontOption): FontFamily = FontFamily(
-    Font(option.regularFontResId, FontWeight.Normal),
-    Font(option.regularFontResId, FontWeight.Medium),
-    Font(option.regularFontResId, FontWeight.SemiBold),
-)
+expect fun monoFamily(option: ChuFontOption): FontFamily
+
+expect fun getFontResourceId(option: ChuFontOption): Int
 
 fun chuTypographyFor(option: ChuFontOption): ChuTypeScale {
     val mono = monoFamily(option)

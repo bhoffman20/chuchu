@@ -1,10 +1,5 @@
 package com.jossephus.chuchu.ui.screens.ServerList
 
-import android.Manifest
-import android.app.Application
-import android.content.pm.PackageManager
-import android.os.Build
-import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -25,8 +20,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -40,17 +33,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlin.math.roundToInt
-import kotlinx.coroutines.launch
 import com.jossephus.chuchu.model.HostProfile
 import com.jossephus.chuchu.model.Transport
-import com.jossephus.chuchu.service.terminal.TerminalSessionRepository
+import com.jossephus.chuchu.service.terminal.TabDescriptor
 import com.jossephus.chuchu.ui.components.ChuButton
 import com.jossephus.chuchu.ui.components.ChuButtonVariant
 import com.jossephus.chuchu.ui.components.ChuCard
@@ -58,6 +46,8 @@ import com.jossephus.chuchu.ui.components.ChuText
 import com.jossephus.chuchu.ui.components.TuiBadge
 import com.jossephus.chuchu.ui.theme.ChuColors
 import com.jossephus.chuchu.ui.theme.ChuTypography
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 @Composable
 fun ServerListScreen(
@@ -70,25 +60,16 @@ fun ServerListScreen(
     onDeleteServer: (Long) -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    connectedHostIds: Set<Long> = emptySet(),
+    openTabs: List<TabDescriptor> = emptyList(),
+    onCloseTab: ((String) -> Unit)? = null,
+    onRequestNotificationPermission: ((onGranted: () -> Unit) -> Unit)? = null,
+    showToast: ((String) -> Unit)? = null,
 ) {
-    val context = LocalContext.current
-    val application = context.applicationContext as Application
-    val sessionRepo = remember(application) { TerminalSessionRepository.getInstance(application) }
-    val connectedHostIds by sessionRepo.connectedHostIds.collectAsStateWithLifecycle()
-    val openTabs by sessionRepo.tabs.collectAsStateWithLifecycle()
     val hasActiveSession = openTabs.isNotEmpty()
 
     var selectedHostId by remember { mutableStateOf<Long?>(null) }
     var pendingConnectHostId by remember { mutableStateOf<Long?>(null) }
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) {
-        val hostId = pendingConnectHostId
-        pendingConnectHostId = null
-        if (hostId != null) {
-            onConnectServer(hostId)
-        }
-    }
     LaunchedEffect(hosts, selectedHostId) {
         val selected_id = selectedHostId
         if (selected_id != null && hosts.none { it.id == selected_id }) {
@@ -136,7 +117,6 @@ fun ServerListScreen(
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(hosts, key = { it.id }) { host ->
-                        val targetSessionKey = "host:${host.id}"
                         val isConnected = host.id in connectedHostIds
                         HostCard(
                             host = host,
@@ -147,11 +127,7 @@ fun ServerListScreen(
                             onDeleteSelection = {
                                 val is_selected_connected = host.id in connectedHostIds
                                 if (is_selected_connected) {
-                                    Toast.makeText(
-                                        context,
-                                        "Disconnect before deleting this host",
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
+                                    showToast?.invoke("Disconnect before deleting this host")
                                 } else {
                                     onDeleteServer(host.id)
                                     selectedHostId = null
@@ -165,34 +141,26 @@ fun ServerListScreen(
                                 selectedHostId = null
                                 val canNavigate = true
                                 if (canNavigate) {
-                                    val needsNotificationPermission =
-                                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                                            ContextCompat.checkSelfPermission(
-                                                context,
-                                                Manifest.permission.POST_NOTIFICATIONS,
-                                            ) != PackageManager.PERMISSION_GRANTED
-                                    if (needsNotificationPermission) {
-                                        pendingConnectHostId = host.id
-                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    val permissionHandler = onRequestNotificationPermission
+                                    if (permissionHandler != null) {
+                                        permissionHandler {
+                                            onConnectServer(host.id)
+                                        }
                                     } else {
                                         onConnectServer(host.id)
                                     }
                                 } else {
-                                    Toast.makeText(
-                                        context,
-                                        "Disconnect current session first",
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
+                                    showToast?.invoke("Disconnect current session first")
                                 }
                             },
                             onDisconnect = {
                                 selectedHostId = null
                                 openTabs
                                     .asSequence()
-                                    .filter { it.spec.hostId == host.id }
+                                    .filter { it.hostId == host.id }
                                     .map { it.id }
                                     .toList()
-                                    .forEach(sessionRepo::closeTab)
+                                    .forEach { id -> onCloseTab?.invoke(id) }
                             },
                         )
                     }
@@ -216,9 +184,7 @@ fun ServerListScreen(
             ) {
                 ChuText("+ add server", style = typography.label, color = colors.onAccent)
             }
-
         }
-
     }
 }
 
@@ -237,7 +203,7 @@ private fun SectionHeader(label: String) {
                 .background(colors.border),
         )
         ChuText(
-            "── $label",
+            "\u2500\u2500 $label",
             style = typography.labelSmall,
             color = colors.textSecondary,
             modifier = Modifier.background(colors.background),
@@ -391,7 +357,7 @@ private fun HostCard(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 ChuText(
-                                    if (isConnected) "● " else "○ ",
+                                    if (isConnected) "\u25CF " else "\u25CB ",
                                     style = typography.title,
                                     color = if (isConnected) colors.success else colors.textMuted,
                                 )

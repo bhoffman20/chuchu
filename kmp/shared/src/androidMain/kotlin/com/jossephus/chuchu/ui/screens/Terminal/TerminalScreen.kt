@@ -60,6 +60,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jossephus.chuchu.data.db.AppDatabase
+import com.jossephus.chuchu.data.db.getAppDatabase
 import com.jossephus.chuchu.data.repository.HostRepository
 import com.jossephus.chuchu.data.repository.SettingsRepository
 import com.jossephus.chuchu.data.repository.SshKeyRepository
@@ -333,7 +334,7 @@ fun TerminalScreen(
         if (existing != null) {
             return@LaunchedEffect
         }
-        val db = AppDatabase.getInstance(context)
+        val db = getAppDatabase(context)
         val host = HostRepository(db.hostProfileDao()).getById(hostId) ?: return@LaunchedEffect
         val key = host.keyId?.let { SshKeyRepository(db.sshKeyDao()).getById(it) }
         vm.refreshTailscaleStatus()
