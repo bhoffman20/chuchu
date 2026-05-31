@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jossephus/chuchu/releases/tag/v0.1.4">Download Latest</a> ·
+  <a href="https://github.com/jossephus/chuchu/releases/latest">Download Latest</a> ·
   <a href="https://github.com/jossephus/chuchu/releases/">ChangeLog</a> ·
 </p>
 
