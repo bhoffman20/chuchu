@@ -3,9 +3,14 @@
 build:
 	cd zig-src && zig build -Doptimize=ReleaseSmall jni
 
-app:
+kmp-app:
 	cd android && ./gradlew assembleDebug
 	cd android && ./gradlew installDebug
+	adb shell am start -n com.jossephus.chuchu/.MainActivity
+
+app:
+	cd kmp && ./gradlew assembleDebug
+	cd kmp && ./gradlew installDebug
 	adb shell am start -n com.jossephus.chuchu/.MainActivity
 
 fmt:

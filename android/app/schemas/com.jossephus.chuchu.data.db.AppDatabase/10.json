@@ -47,8 +47,7 @@
           {
             "fieldPath": "keyId",
             "columnName": "keyId",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "keyPassphrase",
@@ -78,8 +77,7 @@
           {
             "fieldPath": "postConnectCommand",
             "columnName": "postConnectCommand",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -98,8 +96,7 @@
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_host_profiles_name` ON `${TABLE_NAME}` (`name`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       },
       {
         "tableName": "ssh_keys",
@@ -158,11 +155,9 @@
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_ssh_keys_name` ON `${TABLE_NAME}` (`name`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       }
     ],
-    "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
       "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '0234aaa5ce0f640fab659875e46e6182')"
