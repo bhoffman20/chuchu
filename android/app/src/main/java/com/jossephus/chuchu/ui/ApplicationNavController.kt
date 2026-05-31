@@ -102,6 +102,7 @@ fun ApplicationNavController() {
             val customKeyGroups by settingsRepo.terminalCustomKeyGroups.collectAsStateWithLifecycle()
             val themeMode by settingsRepo.themeMode.collectAsStateWithLifecycle()
             val lightThemeName by settingsRepo.lightThemeName.collectAsStateWithLifecycle()
+            val voiceModelId by settingsRepo.voiceModelId.collectAsStateWithLifecycle()
             SettingsScreen(
                 currentTheme = themeName,
                 currentFont = fontName,
@@ -112,6 +113,7 @@ fun ApplicationNavController() {
                 currentTerminalCustomKeyGroups = customKeyGroups,
                 themeMode = themeMode,
                 lightThemeName = lightThemeName,
+                voiceModelId = voiceModelId,
                 onThemeSelected = settingsRepo::setTheme,
                 onThemeModeChanged = settingsRepo::setThemeMode,
                 onLightThemeSelected = settingsRepo::setLightTheme,
@@ -121,6 +123,7 @@ fun ApplicationNavController() {
                 onAccessoryLayoutChanged = settingsRepo::setAccessoryLayoutIds,
                 onAccessoryBarSingleRowChanged = settingsRepo::setAccessoryBarSingleRow,
                 onTerminalCustomActionsChanged = settingsRepo::setTerminalCustomKeyGroups,
+                onVoiceModelIdChanged = settingsRepo::setVoiceModelId,
                 backupViewModel = backupViewModel,
                 onBack = {
                     val currentRoute = navController.currentBackStackEntry?.destination?.route

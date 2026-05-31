@@ -2,8 +2,10 @@ package com.jossephus.chuchu.ui.screens.Settings
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,13 +19,19 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.jossephus.chuchu.data.voice.ParakeetModelStore
+import com.jossephus.chuchu.data.voice.VoiceModels
 import com.jossephus.chuchu.ui.components.ChuButton
 import com.jossephus.chuchu.ui.components.ChuButtonVariant
 import com.jossephus.chuchu.ui.components.ChuSwitch
@@ -32,10 +40,12 @@ import com.jossephus.chuchu.ui.terminal.TerminalCustomKeyGroup
 import com.jossephus.chuchu.ui.theme.ChuColors
 import com.jossephus.chuchu.ui.theme.ChuTypography
 import com.jossephus.chuchu.ui.theme.ThemeMode
+import kotlinx.coroutines.launch
 
 enum class SettingsCategory(val label: String) {
     General("general"),
     Terminal("terminal"),
+    Voice("voice"),
 }
 
 @Composable
@@ -49,6 +59,7 @@ fun SettingsScreen(
     currentTerminalCustomKeyGroups: List<TerminalCustomKeyGroup>,
     themeMode: ThemeMode,
     lightThemeName: String,
+    voiceModelId: String,
     onThemeSelected: (String) -> Unit,
     onThemeModeChanged: (ThemeMode) -> Unit,
     onLightThemeSelected: (String) -> Unit,
@@ -58,6 +69,7 @@ fun SettingsScreen(
     onAccessoryLayoutChanged: (List<String>) -> Unit,
     onAccessoryBarSingleRowChanged: (Boolean) -> Unit,
     onTerminalCustomActionsChanged: (List<TerminalCustomKeyGroup>) -> Unit,
+    onVoiceModelIdChanged: (String) -> Unit,
     backupViewModel: SettingsBackupViewModel? = null,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -165,6 +177,10 @@ fun SettingsScreen(
                         currentTerminalCustomKeyGroups = currentTerminalCustomKeyGroups,
                         onEditCustomActions = { showCustomActionEditor = true },
                     )
+                    SettingsCategory.Voice -> VoiceSettings(
+                        selectedVoiceModelId = voiceModelId,
+                        onVoiceModelIdChanged = onVoiceModelIdChanged,
+                    )
                 }
             }
         }
@@ -193,6 +209,113 @@ fun SettingsScreen(
                 onDismiss = { showBackupSheet = false },
             )
         }
+    }
+}
+
+@Composable
+private fun VoiceSettings(
+    selectedVoiceModelId: String,
+    onVoiceModelIdChanged: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    val colors = ChuColors.current
+    val typography = ChuTypography.current
+    val scope = rememberCoroutineScope()
+    val modelStore = remember(context) { ParakeetModelStore(context) }
+    val progress by modelStore.downloadProgress.collectAsStateWithLifecycle()
+    val installStatus by modelStore.status.collectAsStateWithLifecycle()
+    var isInstalled by remember { mutableStateOf(modelStore.isInstalled()) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(selectedVoiceModelId, isInstalled) {
+        if (!isInstalled && selectedVoiceModelId == VoiceModels.PARAKEET_V2_ID) {
+            onVoiceModelIdChanged(VoiceModels.SYSTEM_ID)
+        }
+    }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        ChuText("── ", style = typography.labelSmall, color = colors.textMuted)
+        ChuText("VOICE", style = typography.labelSmall, color = colors.textMuted)
+        ChuText(" ", style = typography.labelSmall, color = colors.textMuted)
+        Box(modifier = Modifier.height(1.dp).background(colors.textMuted).fillMaxWidth())
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+    ChuText("choose dictation engine", style = typography.label)
+    Spacer(modifier = Modifier.height(10.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth().border(1.dp, colors.border).padding(10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column {
+            ChuText("System", style = typography.label)
+            ChuText("default Android recognizer", style = typography.bodySmall, color = colors.textMuted)
+        }
+        ChuButton(
+            onClick = { onVoiceModelIdChanged(VoiceModels.SYSTEM_ID) },
+            variant = if (selectedVoiceModelId == VoiceModels.SYSTEM_ID) ChuButtonVariant.Filled else ChuButtonVariant.Outlined,
+            bracketed = true,
+        ) { ChuText("select", style = typography.labelSmall) }
+    }
+
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth().border(1.dp, colors.border).padding(10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            ChuText("Parakeet TDT v2", style = typography.label)
+            ChuText("English · 670 MB", style = typography.bodySmall, color = colors.textMuted)
+            if (installStatus is ParakeetModelStore.InstallStatus.Installing) {
+                val progressLabel =
+                    (installStatus as ParakeetModelStore.InstallStatus.Installing).progress
+                        ?.let { " ${(it * 100).toInt()}%" }
+                        .orEmpty()
+                ChuText("installing model...$progressLabel", style = typography.bodySmall, color = colors.accent)
+            } else if (progress != null) {
+                ChuText("downloading ${(progress!! * 100).toInt()}%", style = typography.bodySmall, color = colors.accent)
+            }
+        }
+        if (!isInstalled && progress == null && installStatus !is ParakeetModelStore.InstallStatus.Installing) {
+            ChuButton(
+                onClick = {
+                    scope.launch {
+                        val result = modelStore.download()
+                        if (result.isFailure) {
+                            errorMessage = result.exceptionOrNull()?.message ?: "download failed"
+                        }
+                        isInstalled = modelStore.isInstalled()
+                    }
+                },
+                variant = ChuButtonVariant.Outlined,
+                bracketed = true,
+            ) { ChuText("download", style = typography.labelSmall) }
+        } else if (progress != null || installStatus is ParakeetModelStore.InstallStatus.Installing) {
+            ChuText("...", style = typography.label)
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                ChuButton(
+                    onClick = { onVoiceModelIdChanged(VoiceModels.PARAKEET_V2_ID) },
+                    variant = if (selectedVoiceModelId == VoiceModels.PARAKEET_V2_ID) ChuButtonVariant.Filled else ChuButtonVariant.Outlined,
+                    bracketed = true,
+                ) { ChuText("select", style = typography.labelSmall) }
+                ChuButton(
+                    onClick = {
+                        modelStore.delete()
+                        isInstalled = modelStore.isInstalled()
+                    },
+                    variant = ChuButtonVariant.Ghost,
+                    bracketed = true,
+                    borderColor = colors.textMuted,
+                ) { ChuText("delete", style = typography.labelSmall, color = colors.textMuted) }
+            }
+        }
+    }
+    if (errorMessage != null) {
+        Spacer(modifier = Modifier.height(8.dp))
+        ChuText(errorMessage!!, style = typography.bodySmall, color = colors.error)
     }
 }
 

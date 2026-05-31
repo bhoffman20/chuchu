@@ -92,6 +92,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
     implementation("androidx.fragment:fragment-ktx:1.8.2")
+    implementation("org.apache.commons:commons-compress:1.27.1")
+    implementation("com.k2fsa.sherpa-onnx:sherpa-onnx:1.13.2@aar")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     implementation(libs.androidx.compose.foundation)

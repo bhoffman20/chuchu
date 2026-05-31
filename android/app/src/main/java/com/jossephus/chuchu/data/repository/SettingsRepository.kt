@@ -47,6 +47,9 @@ class SettingsRepository(context: Context) {
     )
     val lightThemeName: StateFlow<String> = _lightThemeName.asStateFlow()
 
+    private val _voiceModelId = MutableStateFlow(prefs.getString(KEY_VOICE_MODEL_ID, DEFAULT_VOICE_MODEL_ID) ?: DEFAULT_VOICE_MODEL_ID)
+    val voiceModelId: StateFlow<String> = _voiceModelId.asStateFlow()
+
     fun setTheme(name: String) {
         prefs.edit().putString(KEY_THEME, name).apply()
         _themeName.value = name
@@ -96,6 +99,12 @@ class SettingsRepository(context: Context) {
         _lightThemeName.value = name
     }
 
+    fun setVoiceModelId(modelId: String) {
+        val normalized = if (modelId.isBlank()) DEFAULT_VOICE_MODEL_ID else modelId
+        prefs.edit().putString(KEY_VOICE_MODEL_ID, normalized).apply()
+        _voiceModelId.value = normalized
+    }
+
     private fun loadAccessoryLayoutIds(): List<String> {
         val stored = prefs.getString(KEY_ACCESSORY_LAYOUT, null)
             ?: return TerminalAccessoryLayoutStore.defaultLayoutIds()
@@ -122,9 +131,11 @@ class SettingsRepository(context: Context) {
         private const val KEY_REQUIRE_AUTH_ON_CONNECT = "require_auth_on_connect"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_LIGHT_THEME = "light_theme_name"
+        private const val KEY_VOICE_MODEL_ID = "voice_model_id"
         const val DEFAULT_THEME = "Catppuccin Mocha"
         const val DEFAULT_LIGHT_THEME = "Catppuccin Latte"
         const val DEFAULT_FONT = "jetbrains_mono"
+        const val DEFAULT_VOICE_MODEL_ID = "system"
 
         @Volatile
         private var instance: SettingsRepository? = null

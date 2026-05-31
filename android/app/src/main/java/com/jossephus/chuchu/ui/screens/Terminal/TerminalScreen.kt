@@ -76,6 +76,8 @@ import com.jossephus.chuchu.data.db.AppDatabase
 import com.jossephus.chuchu.data.repository.HostRepository
 import com.jossephus.chuchu.data.repository.SettingsRepository
 import com.jossephus.chuchu.data.repository.SshKeyRepository
+import com.jossephus.chuchu.data.voice.ParakeetModelStore
+import com.jossephus.chuchu.data.voice.VoiceModels
 import com.jossephus.chuchu.model.AuthMethod
 import com.jossephus.chuchu.service.terminal.SessionStatus
 import com.jossephus.chuchu.service.terminal.TabSpec
@@ -104,10 +106,12 @@ import com.jossephus.chuchu.ui.terminal.TerminalCustomAction
 import com.jossephus.chuchu.ui.terminal.TerminalCustomKeyGroup
 import com.jossephus.chuchu.ui.terminal.TerminalInputView
 import com.jossephus.chuchu.ui.terminal.TerminalSpecialKey
-import com.jossephus.chuchu.ui.terminal.VoiceDictationController
 import com.jossephus.chuchu.ui.terminal.decodeCustomActionValue
 import com.jossephus.chuchu.ui.terminal.modifierStateForCustomAction
 import com.jossephus.chuchu.ui.terminal.toGhosttyKey
+import com.jossephus.chuchu.ui.terminal.dictation.SystemTranscriberBackend
+import com.jossephus.chuchu.ui.terminal.dictation.ParakeetTranscriberBackend
+import com.jossephus.chuchu.ui.terminal.dictation.TranscriberBackend
 import com.jossephus.chuchu.ui.theme.ChuColors
 import com.jossephus.chuchu.ui.theme.ChuSymbolsFontFamily
 import com.jossephus.chuchu.ui.theme.ChuTypography
@@ -371,6 +375,7 @@ fun TerminalScreen(
     val useSingleRowAccessoryBar by settingsRepo.accessoryBarSingleRow.collectAsStateWithLifecycle()
     val currentTerminalCustomKeyGroups by
         settingsRepo.terminalCustomKeyGroups.collectAsStateWithLifecycle()
+    val voiceModelId by settingsRepo.voiceModelId.collectAsStateWithLifecycle()
 
     val accessoryLayout =
         remember(currentAccessoryLayoutIds) {
@@ -665,23 +670,43 @@ fun TerminalScreen(
                         rememberUpdatedState<(String) -> Unit> { message ->
                             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         }
-                    val voiceDictationController =
+                    val parakeetModelStore = remember(context) { ParakeetModelStore(context) }
+                    val systemBackend =
                         remember(context) {
-                            VoiceDictationController(
+                            SystemTranscriberBackend(
                                 context = context,
                                 onFinalText = { onDictationTextState.value(it) },
                                 onError = { onDictationErrorState.value(it) },
                             )
                         }
-                    val dictationState by voiceDictationController.state.collectAsStateWithLifecycle()
+                    val parakeetBackend =
+                        remember(context) {
+                            ParakeetTranscriberBackend(
+                                context = context,
+                                modelStore = parakeetModelStore,
+                                onFinalText = { onDictationTextState.value(it) },
+                                onError = { onDictationErrorState.value(it) },
+                            )
+                        }
+                    val activeDictationBackend: TranscriberBackend =
+                        if (voiceModelId == VoiceModels.PARAKEET_V2_ID && parakeetModelStore.isInstalled()) {
+                            parakeetBackend
+                        } else {
+                            systemBackend
+                        }
+                    val dictationState by activeDictationBackend.state.collectAsStateWithLifecycle()
 
-                    DisposableEffect(voiceDictationController) {
-                        onDispose { voiceDictationController.release() }
+                    DisposableEffect(systemBackend, parakeetBackend) {
+                        onDispose {
+                            systemBackend.release()
+                            parakeetBackend.release()
+                        }
                     }
 
                     LaunchedEffect(selectedTab) {
                         if (selectedTab != ConnectionTab.Terminal) {
-                            voiceDictationController.cancel()
+                            systemBackend.cancel()
+                            parakeetBackend.cancel()
                         }
                     }
 
@@ -690,7 +715,10 @@ fun TerminalScreen(
                             contract = ActivityResultContracts.RequestPermission()
                         ) { granted ->
                             if (granted) {
-                                voiceDictationController.start(Locale.getDefault())
+                                if (voiceModelId == VoiceModels.PARAKEET_V2_ID && !parakeetModelStore.isInstalled()) {
+                                    settingsRepo.setVoiceModelId(VoiceModels.SYSTEM_ID)
+                                }
+                                activeDictationBackend.start(Locale.getDefault())
                                 requestInputFocus()
                             } else {
                                 val activity = context.findActivity()
@@ -712,7 +740,7 @@ fun TerminalScreen(
 
                     fun toggleVoiceDictation() {
                         if (dictationState is DictationState.Listening) {
-                            voiceDictationController.stop()
+                            activeDictationBackend.stop()
                             return
                         }
                         val hasPermission =
@@ -721,7 +749,15 @@ fun TerminalScreen(
                                 Manifest.permission.RECORD_AUDIO,
                             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
                         if (hasPermission) {
-                            voiceDictationController.start(Locale.getDefault())
+                            if (voiceModelId == VoiceModels.PARAKEET_V2_ID && !parakeetModelStore.isInstalled()) {
+                                Toast.makeText(
+                                    context,
+                                    "Parakeet model missing; switched to System",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                                settingsRepo.setVoiceModelId(VoiceModels.SYSTEM_ID)
+                            }
+                            activeDictationBackend.start(Locale.getDefault())
                             requestInputFocus()
                             return
                         }
@@ -1342,6 +1378,13 @@ fun TerminalScreen(
                         Spacer(modifier = Modifier.height(6.dp))
                         if (selectedTab == ConnectionTab.Terminal) {
                             val listeningState = dictationState as? DictationState.Listening
+                            val busyState = dictationState as? DictationState.Busy
+                            val backendLabel =
+                                if (activeDictationBackend.id == VoiceModels.PARAKEET_V2_ID) {
+                                    "parakeet"
+                                } else {
+                                    "system"
+                                }
                             AnimatedVisibility(
                                 visible = chuchuKeys.isPrefixActive,
                                 enter = fadeIn(),
@@ -1369,6 +1412,26 @@ fun TerminalScreen(
                                             color = colors.textSecondary,
                                         )
                                     }
+                                }
+                            }
+                            Row(
+                                modifier =
+                                    Modifier.fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                ChuText(
+                                    "voice: $backendLabel",
+                                    style = typography.labelSmall,
+                                    color = colors.textMuted,
+                                )
+                                if (busyState != null) {
+                                    ChuText(
+                                        busyState.message,
+                                        style = typography.labelSmall,
+                                        color = colors.accent,
+                                    )
                                 }
                             }
                             AnimatedVisibility(

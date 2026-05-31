@@ -15,6 +15,10 @@ import kotlinx.coroutines.flow.asStateFlow
 sealed interface DictationState {
     data object Idle : DictationState
 
+    data class Busy(
+        val message: String,
+    ) : DictationState
+
     data class Listening(
         val partialText: String = "",
         val rmsDb: Float = 0f,
@@ -35,7 +39,7 @@ class VoiceDictationController(
     private var pendingStop = false
 
     fun start(locale: Locale = Locale.getDefault()) {
-        if (_state.value is DictationState.Listening) return
+        if (_state.value !is DictationState.Idle) return
         if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
             onError("Voice dictation is not available on this device")
             return
@@ -44,7 +48,7 @@ class VoiceDictationController(
         val currentSessionId = sessionId + 1
         sessionId = currentSessionId
         pendingStop = false
-        _state.value = DictationState.Listening()
+        _state.value = DictationState.Busy("loading model...")
 
         val nextRecognizer = runCatching { createRecognizer(currentSessionId) }
             .getOrElse {
@@ -64,6 +68,7 @@ class VoiceDictationController(
     fun stop() {
         if (_state.value !is DictationState.Listening) return
         pendingStop = true
+        _state.value = DictationState.Busy("transcribing...")
         recognizer?.stopListening()
     }
 
