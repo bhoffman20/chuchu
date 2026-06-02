@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.verticalScroll
+import com.jossephus.chuchu.ui.screens.Terminal.TerminalTabMode
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
@@ -65,6 +66,8 @@ internal fun TerminalSettings(
     onAccessoryBarSingleRowChanged: (Boolean) -> Unit,
     currentTerminalCustomKeyGroups: List<TerminalCustomKeyGroup>,
     onEditCustomActions: () -> Unit,
+    currentTabMode: TerminalTabMode = TerminalTabMode.Classic,
+    onTabModeChanged: (TerminalTabMode) -> Unit = {},
 ) {
     val colors = ChuColors.current
     val typography = ChuTypography.current
@@ -81,6 +84,54 @@ internal fun TerminalSettings(
     Spacer(modifier = Modifier.height(12.dp))
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Tab interface selector
+        ChuCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        val modeLabel = when (currentTabMode) {
+                            TerminalTabMode.Classic -> "classic palette switcher"
+                            TerminalTabMode.Strip -> "visible global tab strip"
+                        }
+                        ChuText("tab interface", style = typography.label)
+                        ChuText(modeLabel, style = typography.body, color = colors.textMuted)
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TerminalTabMode.entries.forEach { mode ->
+                        val isSelected = mode == currentTabMode
+                        val label = when (mode) {
+                            TerminalTabMode.Classic -> "classic"
+                            TerminalTabMode.Strip -> "tab strip"
+                        }
+                        ChuButton(
+                            onClick = { onTabModeChanged(mode) },
+                            variant = if (isSelected) ChuButtonVariant.Filled
+                            else ChuButtonVariant.Outlined,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            ChuText(
+                                label,
+                                style = typography.label,
+                                color = if (isSelected) colors.onAccent else colors.textSecondary,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         ChuCard(modifier = Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier.padding(12.dp),

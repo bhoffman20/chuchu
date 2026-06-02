@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jossephus.chuchu.service.terminal.TabSession
 import com.jossephus.chuchu.ui.components.ChuButton
 import com.jossephus.chuchu.ui.components.ChuButtonVariant
@@ -123,7 +125,7 @@ fun CommandPalette(
               val (tab, alias) = entries[idx]
               val isActive = tab.id == activeTabId
               val isFocused = idx == focusedTabIndex
-              val state = tab.sessionState.value
+              val state by tab.sessionState.collectAsStateWithLifecycle()
               val displayLabel = state.title?.takeIf { it.isNotBlank() } ?: alias
               Row(
                   modifier =
@@ -169,34 +171,37 @@ fun CommandPalette(
             }
           }
         }
-        val focusedSnapshot =
-            entries.getOrNull(focusedTabIndex)?.first?.sessionState?.value?.snapshot
-        if (focusedSnapshot != null) {
-          Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
-          Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Box(
-                modifier =
-                    Modifier.fillMaxWidth(0.68f)
-                        .height(104.dp)
-                        .background(colors.background.copy(alpha = 0.86f))
-                        .border(1.dp, colors.border.copy(alpha = 0.8f))
-                        .align(Alignment.Center)
-            ) {
-              TerminalCanvas(
-                  snapshot = focusedSnapshot,
-                  fontSizeSp = 10.5f,
-                  fitSnapshotToCanvas = true,
-                  enableGestures = false,
-                  cursorColor = Color.Transparent,
-                  selectionBackgroundColor = Color.Transparent,
-                  selectionForegroundColor = Color.Transparent,
-                  onTap = {},
-                  onPrimaryClick = { _, _ -> },
-                  onScroll = { _, _, _ -> },
-                  onZoom = {},
-                  onSelectionChanged = { _, _, _, _ -> },
-                  modifier = Modifier.fillMaxSize(),
-              )
+        val focusedTab = entries.getOrNull(focusedTabIndex)?.first
+        if (focusedTab != null) {
+          val focusedState by focusedTab.sessionState.collectAsStateWithLifecycle()
+          val focusedSnapshot = focusedState.snapshot
+          if (focusedSnapshot != null) {
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+              Box(
+                  modifier =
+                      Modifier.fillMaxWidth(0.68f)
+                          .height(104.dp)
+                          .background(colors.background.copy(alpha = 0.86f))
+                          .border(1.dp, colors.border.copy(alpha = 0.8f))
+                          .align(Alignment.Center)
+              ) {
+                TerminalCanvas(
+                    snapshot = focusedSnapshot,
+                    fontSizeSp = 10.5f,
+                    fitSnapshotToCanvas = true,
+                    enableGestures = false,
+                    cursorColor = Color.Transparent,
+                    selectionBackgroundColor = Color.Transparent,
+                    selectionForegroundColor = Color.Transparent,
+                    onTap = {},
+                    onPrimaryClick = { _, _ -> },
+                    onScroll = { _, _, _ -> },
+                    onZoom = {},
+                    onSelectionChanged = { _, _, _, _ -> },
+                    modifier = Modifier.fillMaxSize(),
+                )
+              }
             }
           }
         }
@@ -234,23 +239,6 @@ fun CommandPalette(
                   .background(colors.background.copy(alpha = 0.92f)),
       )
     }
-  }
-}
-
-@Composable
-private fun PaletteHint(key: String, label: String) {
-  val colors = ChuColors.current
-  val typography = ChuTypography.current
-  Row(
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(4.dp),
-  ) {
-    Box(
-        modifier = Modifier.border(1.dp, colors.border).padding(horizontal = 5.dp, vertical = 1.dp)
-    ) {
-      ChuText(key, style = typography.labelSmall, color = colors.textSecondary)
-    }
-    ChuText(label, style = typography.labelSmall, color = colors.textMuted)
   }
 }
 

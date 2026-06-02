@@ -133,7 +133,6 @@ class TerminalSessionRepository private constructor(application: Application) {
         val engine =
             TerminalSessionEngine(
                 scope,
-                appContext.filesDir.toPath(),
                 hostKeyStore,
                 tailscaleStatusChecker,
             )

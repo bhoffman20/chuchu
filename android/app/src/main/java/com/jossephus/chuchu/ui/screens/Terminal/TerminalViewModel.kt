@@ -88,6 +88,11 @@ class TerminalViewModel(application: Application) : AndroidViewModel(application
         return openTab(current.spec)
     }
 
+    fun duplicateTab(tabId: String): TabSession? {
+        val tab = sessionRepository.tabs.value.firstOrNull { it.id == tabId } ?: return null
+        return openTab(tab.spec)
+    }
+
     fun selectTab(id: String) {
         sessionRepository.selectTab(id)
     }
