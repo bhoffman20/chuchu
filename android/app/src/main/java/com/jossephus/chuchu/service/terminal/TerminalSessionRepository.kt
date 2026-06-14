@@ -243,24 +243,14 @@ class TerminalSessionRepository private constructor(application: Application) {
     fun switchActiveMultiplexerSession(sessionName: String): Boolean {
         val tab = activeTab.value ?: return false
         val type = tab.spec.multiplexer ?: MultiplexerRegistry.defaultType
-        val runtime = MultiplexerRegistry.forType(type) ?: return false
+        MultiplexerRegistry.forType(type) ?: return false
         val updatedSpec = tab.spec.copy(
             multiplexer = type,
             multiplexerSessionName = sessionName,
             multiplexerCreateIfMissing = false,
         )
         tab.spec = updatedSpec
-        tab.engine.updateMultiplexerStartup(
-            multiplexer = updatedSpec.multiplexer,
-            sessionName = updatedSpec.multiplexerSessionName,
-            createIfMissing = updatedSpec.multiplexerCreateIfMissing,
-        )
-        val command = runtime.launchCommand(
-            sessionName = sessionName,
-            createIfMissing = false,
-            trustedRemoteName = true,
-        )
-        tab.engine.switchMultiplexerSession(command)
+        reconnectTab(tab)
         return true
     }
 

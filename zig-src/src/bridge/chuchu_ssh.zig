@@ -1011,6 +1011,86 @@ export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeOpenExec(e
     return c.JNI_TRUE;
 }
 
+export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeOpenExecPty(env: *c.JNIEnv, thiz: c.jobject, handle: c.jlong, command: c.jstring, cols: c.jint, rows: c.jint, width_px: c.jint, height_px: c.jint, term: c.jstring) callconv(.c) c.jboolean {
+    _ = thiz;
+    const session = sessionFromHandle(handle) orelse return c.JNI_FALSE;
+    const ssh_session = session.session orelse {
+        setError(session, "Not connected", .{});
+        return c.JNI_FALSE;
+    };
+    const command_slice = jniDupString(env, command) orelse {
+        setError(session, "Missing exec command", .{});
+        return c.JNI_FALSE;
+    };
+    defer allocator.free(command_slice);
+    const term_slice = jniDupString(env, term) orelse {
+        setError(session, "Missing TERM", .{});
+        return c.JNI_FALSE;
+    };
+    defer allocator.free(term_slice);
+
+    var channel: ?*c.LIBSSH2_CHANNEL = null;
+    while (channel == null) {
+        channel = c.libssh2_channel_open_ex(ssh_session, "session", 7, c.LIBSSH2_CHANNEL_WINDOW_DEFAULT, c.LIBSSH2_CHANNEL_PACKET_DEFAULT, null, 0);
+        if (channel != null) break;
+        const open_rc = c.libssh2_session_last_errno(ssh_session);
+        if (open_rc != c.LIBSSH2_ERROR_EAGAIN) {
+            setLibssh2Error(session, "Channel open failed", open_rc);
+            return c.JNI_FALSE;
+        }
+        if (!waitSocket(session, setup_wait_timeout_ms)) {
+            setError(session, "Channel open timed out", .{});
+            return c.JNI_FALSE;
+        }
+    }
+    if (session.channel) |old_ch| {
+        _ = c.libssh2_channel_close(old_ch);
+        _ = c.libssh2_channel_free(old_ch);
+    }
+    session.channel = channel;
+    c.libssh2_channel_set_blocking(channel.?, 0);
+
+    var term_buf = allocator.allocSentinel(u8, term_slice.len, 0) catch {
+        setError(session, "TERM alloc failed", .{});
+        return c.JNI_FALSE;
+    };
+    defer allocator.free(term_buf);
+    @memcpy(term_buf[0..term_slice.len], term_slice);
+
+    while (true) {
+        const pty_rc = c.libssh2_channel_request_pty_ex(channel.?, term_buf.ptr, @intCast(term_slice.len), null, 0, cols, rows, width_px, height_px);
+        if (pty_rc == 0) break;
+        if (pty_rc != c.LIBSSH2_ERROR_EAGAIN) {
+            setLibssh2Error(session, "PTY request failed", pty_rc);
+            return c.JNI_FALSE;
+        }
+        if (!waitSocket(session, setup_wait_timeout_ms)) {
+            setError(session, "PTY request timed out", .{});
+            return c.JNI_FALSE;
+        }
+    }
+    trySetChannelEnv(session, channel.?, "COLORTERM", "truecolor");
+    trySetChannelEnv(session, channel.?, "TERM_PROGRAM", "ghostty");
+    trySetChannelEnv(session, channel.?, "TERM_PROGRAM_VERSION", "1");
+
+    while (true) {
+        const startup_rc = c.libssh2_channel_process_startup(channel.?, "exec", 4, command_slice.ptr, @intCast(command_slice.len));
+        if (startup_rc == 0) break;
+        if (startup_rc != c.LIBSSH2_ERROR_EAGAIN) {
+            setLibssh2Error(session, "Exec start failed", startup_rc);
+            return c.JNI_FALSE;
+        }
+        if (!waitSocket(session, setup_wait_timeout_ms)) {
+            setError(session, "Exec start timed out", .{});
+            return c.JNI_FALSE;
+        }
+    }
+    setSocketNonBlocking(session.socket_fd);
+    c.libssh2_session_set_blocking(ssh_session, 0);
+    c.libssh2_channel_set_blocking(channel.?, 0);
+    return c.JNI_TRUE;
+}
+
 export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeChannelEof(env: *c.JNIEnv, thiz: c.jobject, handle: c.jlong) callconv(.c) c.jboolean {
     _ = env;
     _ = thiz;

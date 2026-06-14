@@ -80,7 +80,19 @@ class TerminalSessionEngine(
         val multiplexer: MultiplexerType? = null,
         val multiplexerSessionName: String? = null,
         val multiplexerCreateIfMissing: Boolean = true,
-    )
+    ) {
+        fun multiplexerStartupCommand(): String? {
+            val type = multiplexer ?: return null
+            if (!type.runtimeSupported || transport == Transport.Mosh) return null
+            val sessionName = multiplexerSessionName?.takeIf { it.isNotBlank() } ?: return null
+            val runtime = MultiplexerRegistry.forType(type) ?: return null
+            return runtime.launchCommand(
+                sessionName = sessionName,
+                createIfMissing = multiplexerCreateIfMissing,
+                trustedRemoteName = true,
+            )
+        }
+    }
 
     private val dispatcher: ExecutorCoroutineDispatcher =
         Executors.newSingleThreadExecutor { r ->
@@ -273,27 +285,6 @@ class TerminalSessionEngine(
             try {
                 writeRemote(text.toByteArray(Charsets.UTF_8))
             } catch (_: Exception) {}
-        }
-    }
-
-    fun switchMultiplexerSession(command: String) {
-        scope.launch(dispatcher) {
-            if (handle == 0L) return@launch
-            sendInteractiveCommand(command, "multiplexer switch")
-        }
-    }
-
-    fun updateMultiplexerStartup(
-        multiplexer: MultiplexerType?,
-        sessionName: String?,
-        createIfMissing: Boolean,
-    ) {
-        scope.launch(dispatcher) {
-            lastConnectionParams = lastConnectionParams?.copy(
-                multiplexer = multiplexer,
-                multiplexerSessionName = sessionName,
-                multiplexerCreateIfMissing = createIfMissing,
-            )
         }
     }
 
@@ -746,7 +737,12 @@ class TerminalSessionEngine(
             privateKeyPem = params.privateKeyPem,
             keyPassphrase = params.keyPassphrase,
         )
-        nativeSsh.openShell(cols, rows, screenWidth, screenHeight)
+        val startupCommand = params.multiplexerStartupCommand()?.trim().orEmpty()
+        if (startupCommand.isNotEmpty()) {
+            nativeSsh.openExecPty(startupCommand, cols, rows, screenWidth, screenHeight)
+        } else {
+            nativeSsh.openShell(cols, rows, screenWidth, screenHeight)
+        }
     }
 
     private suspend fun establishMoshConnection(params: ConnectionParams, username: String) {
@@ -1023,25 +1019,10 @@ class TerminalSessionEngine(
         }
     }
 
-    private fun sendStartupCommand(params: ConnectionParams) {
+    private suspend fun sendStartupCommand(params: ConnectionParams) {
         val multiplexerCommand = params.multiplexerStartupCommand()?.trim().orEmpty()
-        if (multiplexerCommand.isNotEmpty() && params.transport != Transport.Mosh) {
-            sendInteractiveCommand(multiplexerCommand, "multiplexer startup")
-            return
-        }
+        if (multiplexerCommand.isNotEmpty() && params.transport != Transport.Mosh) return
         sendPostConnectCommand(params.postConnectCommand)
-    }
-
-    private fun ConnectionParams.multiplexerStartupCommand(): String? {
-        val type = multiplexer ?: return null
-        if (!type.runtimeSupported || transport == Transport.Mosh) return null
-        val sessionName = multiplexerSessionName?.takeIf { it.isNotBlank() } ?: return null
-        val runtime = MultiplexerRegistry.forType(type) ?: return null
-        return runtime.launchCommand(
-            sessionName = sessionName,
-            createIfMissing = multiplexerCreateIfMissing,
-            trustedRemoteName = true,
-        )
     }
 
     private fun sendPostConnectCommand(command: String?) {
