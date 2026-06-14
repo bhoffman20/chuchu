@@ -7,7 +7,7 @@ object MultiplexerRegistry {
 
     fun forType(type: MultiplexerType): Multiplexer? = when (type) {
         MultiplexerType.Tmux -> TmuxMultiplexer
-        MultiplexerType.Zellij,
-        MultiplexerType.Zmx -> null
+        MultiplexerType.Zmx -> ZmxMultiplexer
+        MultiplexerType.Zellij -> null
     }
 }

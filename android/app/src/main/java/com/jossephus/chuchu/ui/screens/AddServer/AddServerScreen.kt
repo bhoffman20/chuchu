@@ -411,7 +411,7 @@ private fun MultiplexerSection(
         ),
         selected = selectedOption,
         onSelect = { onSelect(it.type) },
-        disabledOptions = setOf(MultiplexerOption.Zellij, MultiplexerOption.Zmx),
+        disabledOptions = setOf(MultiplexerOption.Zellij),
     )
 }
 

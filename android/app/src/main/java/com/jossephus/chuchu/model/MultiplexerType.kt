@@ -7,7 +7,7 @@ enum class MultiplexerType(
 ) {
     Tmux("tmux", "tmux", true),
     Zellij("zellij", "zellij", false),
-    Zmx("zmx", "zmx", false),
+    Zmx("zmx", "zmx", true),
     ;
 
     companion object {

@@ -13,13 +13,18 @@ class MultiplexerModelsTest {
     }
 
     @Test
-    fun registryLeavesFutureMultiplexersUnsupportedForNow() {
+    fun registryReturnsZmxRuntime() {
+        assertSame(ZmxMultiplexer, MultiplexerRegistry.forType(MultiplexerType.Zmx))
+    }
+
+    @Test
+    fun registryLeavesFutureZellijUnsupportedForNow() {
         assertNull(MultiplexerRegistry.forType(MultiplexerType.Zellij))
-        assertNull(MultiplexerRegistry.forType(MultiplexerType.Zmx))
     }
 
     @Test
     fun persistedValuesResolveByStableId() {
         assertEquals(MultiplexerType.Tmux, MultiplexerType.fromPersistedValue("tmux"))
+        assertEquals(MultiplexerType.Zmx, MultiplexerType.fromPersistedValue("zmx"))
     }
 }
