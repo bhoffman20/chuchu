@@ -281,6 +281,8 @@ fun TerminalScreen(
         remember(currentAccessoryLayoutIds) {
             TerminalAccessoryLayoutStore.resolveSelectedLayout(currentAccessoryLayoutIds)
         }
+    val (accessoryLine1, accessoryLine2) =
+        remember(accessoryLayout) { TerminalAccessoryLayoutStore.splitIntoTwoRows(accessoryLayout) }
     val ghosttyTheme =
         remember(context, resolvedThemeName) { GhosttyThemeRegistry.getTheme(context, resolvedThemeName) }
     val isDarkTheme = (ghosttyTheme?.background ?: colors.background).luminance() < 0.5f
@@ -300,6 +302,7 @@ fun TerminalScreen(
     var terminalFontSizeSp by remember {
         mutableStateOf(settingsFontSize.coerceAtLeast(0.1f))
     }
+    var showCustomActionsFab by remember { mutableStateOf(true) }
     val chuchuKeys =
         remember(vm, tabMode) {
             val isStrip = tabMode == TerminalTabMode.Strip
@@ -308,6 +311,8 @@ fun TerminalScreen(
                     listOf(
                         ChuchuHint(key = "t", description = if (isStrip) "tab manager" else "tabs"),
                         ChuchuHint(key = "n", description = "new tab"),
+                        ChuchuHint(key = "c", description = "toggle actions"),
+                        ChuchuHint(key = "s", description = "settings"),
                     ),
                 handlers =
                     mapOf(
@@ -324,6 +329,8 @@ fun TerminalScreen(
                                 vm.selectConnectionTab(ConnectionTab.Terminal)
                                 showTabSheet = false
                             },
+                        'c' to { showCustomActionsFab = !showCustomActionsFab },
+                        's' to { onOpenSettings() },
                     ),
             )
         }
@@ -751,6 +758,22 @@ fun TerminalScreen(
 
 
                     fun dispatchAccessoryAction(action: AccessoryAction) {
+                        when (action) {
+                            AccessoryAction.Settings -> {
+                                onOpenSettings()
+                                return
+                            }
+                            AccessoryAction.ChuchuKey -> {
+                                chuchuKeys.togglePrefix()
+                                requestInputFocus()
+                                return
+                            }
+                            AccessoryAction.OpenFiles -> {
+                                vm.selectConnectionTab(ConnectionTab.Files)
+                                return
+                            }
+                            else -> {}
+                        }
                         if (
                             action is AccessoryAction.SendText && chuchuKeys.handleText(action.text)
                         ) {
@@ -1356,7 +1379,7 @@ fun TerminalScreen(
                                     },
                                 )
 
-                                if (currentTerminalCustomKeyGroups.isNotEmpty()) {
+                                if (currentTerminalCustomKeyGroups.isNotEmpty() && showCustomActionsFab) {
                                     TerminalCustomActionsFab(
                                         groups = currentTerminalCustomKeyGroups,
                                         onActionClick = { action ->
@@ -1385,7 +1408,6 @@ fun TerminalScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(6.dp))
                         if (selectedTab == ConnectionTab.Terminal) {
                             if (activeHostCount > 1 && currentHostName != null) {
                                 Row(
@@ -1429,18 +1451,13 @@ fun TerminalScreen(
                                 }
                             }
                             KeyboardAccessoryBar(
-                                items = accessoryLayout,
+                                line1Items = accessoryLine1,
+                                line2Items = accessoryLine2,
                                 modifierState = modifierState,
                                 onAction = ::dispatchAccessoryAction,
-                                onSettings = onOpenSettings,
-                                onChuchuKey = {
-                                    chuchuKeys.togglePrefix()
-                                    requestInputFocus()
-                                },
                                 chuchuKeyActive = chuchuKeys.isPrefixActive,
-                                onOpenFiles = { vm.selectConnectionTab(ConnectionTab.Files) },
                                 useSingleRow = useSingleRowAccessoryBar,
-                                modifier = Modifier.padding(bottom = 2.dp),
+                                modifier = Modifier,
                             )
                         }
                     }
@@ -1452,64 +1469,78 @@ fun TerminalScreen(
                 }
                 if (showTabSheet) {
                     val paletteAccessoryAction: (AccessoryAction) -> Unit = { action ->
-                        if (
-                            !(action is AccessoryAction.SendText &&
-                                chuchuKeys.handleText(action.text))
-                        ) {
-                            if (chuchuKeys.isPrefixActive) {
-                                chuchuKeys.reset()
+                        when (action) {
+                            AccessoryAction.Settings -> {
+                                onOpenSettings()
                             }
-                            val preDispatchModifierState = modifierState
-                            val result =
-                                TerminalAccessoryDispatcher.dispatch(action, preDispatchModifierState)
-                            modifierState = result.modifierState
-
-                            // Mirror main-handler IME suppression
-                            if (result.suppressImeInput) {
-                                inputViewRef.value?.armInputSuppression(action.toString())
+                            AccessoryAction.ChuchuKey -> {
+                                chuchuKeys.togglePrefix()
                             }
+                            AccessoryAction.OpenFiles -> {
+                                vm.selectConnectionTab(ConnectionTab.Files)
+                                showTabSheet = false
+                            }
+                            else -> {
+                                if (
+                                    !(action is AccessoryAction.SendText &&
+                                        chuchuKeys.handleText(action.text))
+                                ) {
+                                    if (chuchuKeys.isPrefixActive) {
+                                        chuchuKeys.reset()
+                                    }
+                                    val preDispatchModifierState = modifierState
+                                    val result =
+                                        TerminalAccessoryDispatcher.dispatch(action, preDispatchModifierState)
+                                    modifierState = result.modifierState
 
-                            when (result.specialKey) {
-                                TerminalSpecialKey.Left,
-                                TerminalSpecialKey.Up -> {
-                                    if (tabsForHost.isNotEmpty())
-                                        focusedTabIndex =
-                                            (focusedTabIndex - 1).mod(tabsForHost.size)
-                                }
-                                TerminalSpecialKey.Right,
-                                TerminalSpecialKey.Down -> {
-                                    if (tabsForHost.isNotEmpty())
-                                        focusedTabIndex =
-                                            (focusedTabIndex + 1).mod(tabsForHost.size)
-                                }
-                                TerminalSpecialKey.Enter -> {
-                                    tabsForHost.getOrNull(focusedTabIndex)?.let {
-                                        vm.selectTab(it.id)
-                                        showTabSheet = false
+                                    // Mirror main-handler IME suppression
+                                    if (result.suppressImeInput) {
+                                        inputViewRef.value?.armInputSuppression(action.toString())
                                     }
-                                }
-                                TerminalSpecialKey.Escape -> {
-                                    showTabSheet = false
-                                }
-                                else -> {
-                                    result.specialKey?.let { key ->
-                                        vm.onSpecialKeyInput(
-                                            key,
-                                            preDispatchModifierState.terminalMods(),
-                                        )
-                                    }
-                                    result.text?.let { text ->
-                                        if (!chuchuKeys.handleText(text)) {
-                                            vm.onTextInput(text)
+
+                                    when (result.specialKey) {
+                                        TerminalSpecialKey.Left,
+                                        TerminalSpecialKey.Up -> {
+                                            if (tabsForHost.isNotEmpty())
+                                                focusedTabIndex =
+                                                    (focusedTabIndex - 1).mod(tabsForHost.size)
+                                        }
+                                        TerminalSpecialKey.Right,
+                                        TerminalSpecialKey.Down -> {
+                                            if (tabsForHost.isNotEmpty())
+                                                focusedTabIndex =
+                                                    (focusedTabIndex + 1).mod(tabsForHost.size)
+                                        }
+                                        TerminalSpecialKey.Enter -> {
+                                            tabsForHost.getOrNull(focusedTabIndex)?.let {
+                                                vm.selectTab(it.id)
+                                                showTabSheet = false
+                                            }
+                                        }
+                                        TerminalSpecialKey.Escape -> {
+                                            showTabSheet = false
+                                        }
+                                        else -> {
+                                            result.specialKey?.let { key ->
+                                                vm.onSpecialKeyInput(
+                                                    key,
+                                                    preDispatchModifierState.terminalMods(),
+                                                )
+                                            }
+                                            result.text?.let { text ->
+                                                if (!chuchuKeys.handleText(text)) {
+                                                    vm.onTextInput(text)
+                                                }
+                                            }
                                         }
                                     }
-                                }
-                            }
 
-                            // Preserve sticky modifiers: paste applies active modifiers
-                            // but does not clear them.
-                            if (result.shouldPaste) {
-                                pasteClipboard()
+                                    // Preserve sticky modifiers: paste applies active modifiers
+                                    // but does not clear them.
+                                    if (result.shouldPaste) {
+                                        pasteClipboard()
+                                    }
+                                }
                             }
                         }
                     }
@@ -1518,16 +1549,11 @@ fun TerminalScreen(
                         activeTabId = activeTabId,
                         focusedTabIndex = focusedTabIndex,
                         onFocusedTabIndexChange = { focusedTabIndex = it },
-                        accessoryItems = accessoryLayout,
+                        accessoryLine1Items = accessoryLine1,
+                        accessoryLine2Items = accessoryLine2,
                         accessoryModifierState = modifierState,
                         onAccessoryAction = paletteAccessoryAction,
-                        onChuchuKey = { chuchuKeys.togglePrefix() },
                         chuchuKeyActive = chuchuKeys.isPrefixActive,
-                        onOpenFiles = {
-                            vm.selectConnectionTab(ConnectionTab.Files)
-                            showTabSheet = false
-                        },
-                        onOpenSettings = onOpenSettings,
                         useSingleRowAccessoryBar = useSingleRowAccessoryBar,
                         onSelectTab = {
                             vm.selectTab(it)
