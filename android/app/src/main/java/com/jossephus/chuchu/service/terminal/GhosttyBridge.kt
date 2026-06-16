@@ -25,6 +25,7 @@ class GhosttyBridge {
     external fun nativeDestroy(handle: Long)
     external fun nativeWriteRemote(handle: Long, data: ByteArray)
     external fun nativeResize(handle: Long, cols: Int, rows: Int, cellW: Int, cellH: Int)
+    external fun nativeSetCellSize(handle: Long, cellWidthPx: Float, cellHeightPx: Float)
     external fun nativeScroll(handle: Long, delta: Int, x: Float, y: Float)
     external fun nativeScrollToActive(handle: Long)
     external fun nativeSnapshot(handle: Long): ByteBuffer
