@@ -260,8 +260,6 @@ fun TerminalScreen(
     val screenInsetsModifier = modifier.windowInsetsPadding(WindowInsets.safeDrawing)
     var lastSessionStatus by remember { mutableStateOf<SessionStatus?>(null) }
     val settingsRepo = remember(context) { SettingsRepository.getInstance(context) }
-    val terminalPrefs =
-        remember(context) { context.getSharedPreferences("chuchu_terminal", Context.MODE_PRIVATE) }
     val currentTheme by settingsRepo.themeName.collectAsStateWithLifecycle()
     val themeMode by settingsRepo.themeMode.collectAsStateWithLifecycle()
     val lightThemeName by settingsRepo.lightThemeName.collectAsStateWithLifecycle()
@@ -275,6 +273,9 @@ fun TerminalScreen(
     val useSingleRowAccessoryBar by settingsRepo.accessoryBarSingleRow.collectAsStateWithLifecycle()
     val currentTerminalCustomKeyGroups by
         settingsRepo.terminalCustomKeyGroups.collectAsStateWithLifecycle()
+    val applyTerminalThemeColors by settingsRepo.applyTerminalThemeColors.collectAsStateWithLifecycle()
+    val settingsFontSize by settingsRepo.terminalFontSize.collectAsStateWithLifecycle()
+    val settingsColumns by settingsRepo.terminalColumns.collectAsStateWithLifecycle()
 
     val accessoryLayout =
         remember(currentAccessoryLayoutIds) {
@@ -297,7 +298,7 @@ fun TerminalScreen(
     var hasSeenTabsForHost by remember(hostId) { mutableStateOf(false) }
     var focusedTabIndex by remember { mutableStateOf(0) }
     var terminalFontSizeSp by remember {
-        mutableStateOf(terminalPrefs.getFloat("terminal_font_size_sp", 14f).coerceAtLeast(0.1f))
+        mutableStateOf(settingsFontSize.coerceAtLeast(0.1f))
     }
     val chuchuKeys =
         remember(vm, tabMode) {
@@ -329,7 +330,7 @@ fun TerminalScreen(
     val multiplexerState by vm.multiplexerState.collectAsStateWithLifecycle()
 
     LaunchedEffect(terminalFontSizeSp) {
-        terminalPrefs.edit().putFloat("terminal_font_size_sp", terminalFontSizeSp).apply()
+        settingsRepo.setTerminalFontSize(terminalFontSizeSp)
     }
 
     val hasTabsForHost =
@@ -679,20 +680,30 @@ fun TerminalScreen(
                 }
 
                 Box(modifier = screenInsetsModifier.fillMaxSize()) {
-                    LaunchedEffect(ghosttyTheme, colors, isDarkTheme) {
+                    LaunchedEffect(ghosttyTheme, colors, isDarkTheme, applyTerminalThemeColors) {
                         vm.onColorSchemeChanged(isDarkTheme)
-                        vm.onDefaultColorsChanged(
-                            fg =
-                                ghosttyTheme?.foreground?.toRgbIntArray()
-                                    ?: colors.textPrimary.toRgbIntArray(),
-                            bg =
-                                ghosttyTheme?.background?.toRgbIntArray()
-                                    ?: colors.background.toRgbIntArray(),
-                            cursor =
-                                ghosttyTheme?.cursorColor?.toRgbIntArray()
-                                    ?: colors.accent.toRgbIntArray(),
-                            palette = ghosttyTheme?.toTerminalPaletteBytes(),
-                        )
+                        if (applyTerminalThemeColors) {
+                            vm.onDefaultColorsChanged(
+                                fg =
+                                    ghosttyTheme?.foreground?.toRgbIntArray()
+                                        ?: colors.textPrimary.toRgbIntArray(),
+                                bg =
+                                    ghosttyTheme?.background?.toRgbIntArray()
+                                        ?: colors.background.toRgbIntArray(),
+                                cursor =
+                                    ghosttyTheme?.cursorColor?.toRgbIntArray()
+                                        ?: colors.accent.toRgbIntArray(),
+                                palette = ghosttyTheme?.toTerminalPaletteBytes(),
+                            )
+                        } else {
+                            // Let ghostty-vt use its built-in xterm 256-color defaults.
+                            vm.onDefaultColorsChanged(
+                                fg = null,
+                                bg = null,
+                                cursor = null,
+                                palette = null,
+                            )
+                        }
                     }
 
                     LaunchedEffect(sessionState.bellCount) {
@@ -1111,6 +1122,7 @@ fun TerminalScreen(
                                 TerminalCanvas(
                                     snapshot = snapshot,
                                     fontSizeSp = terminalFontSizeSp,
+                                    fixedColumns = settingsColumns,
                                     cursorColor =
                                         ghosttyTheme?.cursorColor
                                             ?: Color.White.copy(alpha = 0.28f),

@@ -25,11 +25,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import com.jossephus.chuchu.ui.screens.Terminal.TerminalTabMode
 import androidx.compose.runtime.Composable
@@ -48,6 +50,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
@@ -56,6 +59,7 @@ import com.jossephus.chuchu.ui.components.ChuButtonVariant
 import com.jossephus.chuchu.ui.components.ChuCard
 import com.jossephus.chuchu.ui.components.ChuText
 import com.jossephus.chuchu.ui.components.ChuSwitch
+import com.jossephus.chuchu.ui.components.ChuTextField
 import com.jossephus.chuchu.ui.terminal.AccessoryKeyItem
 import com.jossephus.chuchu.ui.terminal.KeyboardAccessoryBar
 import com.jossephus.chuchu.ui.terminal.ModifierState
@@ -71,6 +75,12 @@ internal fun TerminalSettings(
     onEditAccessoryLayout: () -> Unit,
     accessoryBarSingleRow: Boolean,
     onAccessoryBarSingleRowChanged: (Boolean) -> Unit,
+    applyTerminalThemeColors: Boolean = true,
+    onApplyTerminalThemeColorsChanged: (Boolean) -> Unit = {},
+    currentTerminalFontSize: Float = 14f,
+    onTerminalFontSizeChanged: (Float) -> Unit = {},
+    currentTerminalColumns: Int = 0,
+    onTerminalColumnsChanged: (Int) -> Unit = {},
     currentTerminalCustomKeyGroups: List<TerminalCustomKeyGroup>,
     onEditCustomActions: () -> Unit,
     currentTabMode: TerminalTabMode = TerminalTabMode.Classic,
@@ -100,6 +110,141 @@ internal fun TerminalSettings(
             tabModeContainerBounds = coordinates.boundsInWindow()
         },
     ) {
+        // Theme color toggle
+        ChuCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        ChuText("apply theme to terminal", style = typography.label)
+                        ChuText(
+                            "when off, terminal uses standard xterm colors",
+                            style = typography.bodySmall,
+                            color = colors.textMuted,
+                        )
+                    }
+                    ChuSwitch(
+                        checked = applyTerminalThemeColors,
+                        onCheckedChange = onApplyTerminalThemeColorsChanged,
+                    )
+                }
+            }
+        }
+
+        // Font size selector
+        ChuCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ChuText("font size", style = typography.label)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ChuButton(
+                            onClick = {
+                                onTerminalFontSizeChanged(
+                                    (currentTerminalFontSize.roundToInt() - 1)
+                                        .coerceAtLeast(MIN_TERMINAL_FONT_SIZE.toInt())
+                                        .toFloat(),
+                                )
+                            },
+                            variant = ChuButtonVariant.Outlined,
+                            bracketed = true,
+                            enabled = currentTerminalFontSize.roundToInt() > MIN_TERMINAL_FONT_SIZE.toInt(),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        ) {
+                            ChuText("-", style = typography.label)
+                        }
+                        ChuTextField(
+                            value = "${currentTerminalFontSize.toInt()}",
+                            onValueChange = { value ->
+                                val digits = value.filter { it.isDigit() }
+                                if (digits.isNotEmpty()) {
+                                    val parsed = digits.toIntOrNull() ?: MIN_TERMINAL_FONT_SIZE.toInt()
+                                    onTerminalFontSizeChanged(
+                                        parsed.coerceIn(MIN_TERMINAL_FONT_SIZE.toInt(), MAX_TERMINAL_FONT_SIZE.toInt()).toFloat(),
+                                    )
+                                }
+                            },
+                            label = "",
+                            showLabel = false,
+                            singleLine = true,
+                            modifier = Modifier.width(64.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            autoFocus = false,
+                        )
+                        ChuButton(
+                            onClick = {
+                                onTerminalFontSizeChanged(
+                                    (currentTerminalFontSize.roundToInt() + 1)
+                                        .coerceAtMost(MAX_TERMINAL_FONT_SIZE.toInt())
+                                        .toFloat(),
+                                )
+                            },
+                            variant = ChuButtonVariant.Outlined,
+                            bracketed = true,
+                            enabled = currentTerminalFontSize.roundToInt() < MAX_TERMINAL_FONT_SIZE.toInt(),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        ) {
+                            ChuText("+", style = typography.label)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Column count input
+        ChuCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        ChuText("columns", style = typography.label)
+                        ChuText(
+                            "terminal width in columns (0 = auto)",
+                            style = typography.bodySmall,
+                            color = colors.textMuted,
+                        )
+                    }
+                    ChuTextField(
+                        value = if (currentTerminalColumns == 0) "" else "$currentTerminalColumns",
+                        onValueChange = { value ->
+                            val parsed = value.filter { it.isDigit() }.toIntOrNull() ?: 0
+                            onTerminalColumnsChanged(parsed.coerceIn(0, 999))
+                        },
+                        label = "",
+                        singleLine = true,
+                        modifier = Modifier.width(80.dp),
+                    )
+                }
+            }
+        }
+
         // Tab interface selector
         ChuCard(modifier = Modifier.fillMaxWidth()) {
             Column(
@@ -315,6 +460,9 @@ private fun tabModeLabel(mode: TerminalTabMode): String = when (mode) {
     TerminalTabMode.Classic -> "palette"
     TerminalTabMode.Strip -> "tab strip"
 }
+
+private const val MIN_TERMINAL_FONT_SIZE = 6f
+private const val MAX_TERMINAL_FONT_SIZE = 72f
 
 @Composable
 internal fun AccessoryLayoutEditorSheet(
