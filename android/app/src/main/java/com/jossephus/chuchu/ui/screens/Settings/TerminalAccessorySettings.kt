@@ -79,8 +79,6 @@ internal fun TerminalSettings(
     onApplyTerminalThemeColorsChanged: (Boolean) -> Unit = {},
     currentTerminalFontSize: Float = 14f,
     onTerminalFontSizeChanged: (Float) -> Unit = {},
-    currentTerminalColumns: Int = 0,
-    onTerminalColumnsChanged: (Int) -> Unit = {},
     currentTerminalCustomKeyGroups: List<TerminalCustomKeyGroup>,
     onEditCustomActions: () -> Unit,
     currentTabMode: TerminalTabMode = TerminalTabMode.Classic,
@@ -205,42 +203,6 @@ internal fun TerminalSettings(
                             ChuText("+", style = typography.label)
                         }
                     }
-                }
-            }
-        }
-
-        // Column count input
-        ChuCard(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        ChuText("columns", style = typography.label)
-                        ChuText(
-                            "terminal width in columns (0 = auto)",
-                            style = typography.bodySmall,
-                            color = colors.textMuted,
-                        )
-                    }
-                    ChuTextField(
-                        value = if (currentTerminalColumns == 0) "" else "$currentTerminalColumns",
-                        onValueChange = { value ->
-                            val parsed = value.filter { it.isDigit() }.toIntOrNull() ?: 0
-                            onTerminalColumnsChanged(parsed.coerceIn(0, 999))
-                        },
-                        label = "",
-                        singleLine = true,
-                        modifier = Modifier.width(80.dp),
-                    )
                 }
             }
         }

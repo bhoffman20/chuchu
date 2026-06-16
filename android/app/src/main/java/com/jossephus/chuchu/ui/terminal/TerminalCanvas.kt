@@ -52,7 +52,6 @@ fun TerminalCanvas(
     snapshot: TerminalSnapshot,
     modifier: Modifier = Modifier,
     fontSizeSp: Float = 14f,
-    fixedColumns: Int = 0,
     fitSnapshotToCanvas: Boolean = false,
     enableGestures: Boolean = true,
     cursorColor: Color = Color.White.copy(alpha = 0.28f),
@@ -208,9 +207,9 @@ fun TerminalCanvas(
         }
     }
 
-    LaunchedEffect(canvasSize, cellWidthPx, cellHeightPx, fixedColumns) {
+    LaunchedEffect(canvasSize, cellWidthPx, cellHeightPx) {
         if (canvasSize.width <= 0 || canvasSize.height <= 0) return@LaunchedEffect
-        val cols = if (fixedColumns > 0) fixedColumns else max(1, floor(canvasSize.width / cellWidthPx).toInt())
+        val cols = max(1, floor(canvasSize.width / cellWidthPx).toInt())
         val rows = max(1, floor(canvasSize.height / cellHeightPx).toInt())
         val grid = Pair(cols, rows)
         if (grid != lastResizedGrid) {
