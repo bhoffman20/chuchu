@@ -275,7 +275,6 @@ fun TerminalScreen(
         settingsRepo.terminalCustomKeyGroups.collectAsStateWithLifecycle()
     val applyTerminalThemeColors by settingsRepo.applyTerminalThemeColors.collectAsStateWithLifecycle()
     val settingsFontSize by settingsRepo.terminalFontSize.collectAsStateWithLifecycle()
-    val settingsColumns by settingsRepo.terminalColumns.collectAsStateWithLifecycle()
 
     val accessoryLayout =
         remember(currentAccessoryLayoutIds) {
@@ -1122,7 +1121,6 @@ fun TerminalScreen(
                                 TerminalCanvas(
                                     snapshot = snapshot,
                                     fontSizeSp = terminalFontSizeSp,
-                                    fixedColumns = settingsColumns,
                                     cursorColor =
                                         ghosttyTheme?.cursorColor
                                             ?: Color.White.copy(alpha = 0.28f),

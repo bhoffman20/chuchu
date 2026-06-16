@@ -104,7 +104,6 @@ fun ApplicationNavController() {
             val themeMode by settingsRepo.themeMode.collectAsStateWithLifecycle()
             val applyTerminalThemeColors by settingsRepo.applyTerminalThemeColors.collectAsStateWithLifecycle()
             val terminalFontSize by settingsRepo.terminalFontSize.collectAsStateWithLifecycle()
-            val terminalColumns by settingsRepo.terminalColumns.collectAsStateWithLifecycle()
             val lightThemeName by settingsRepo.lightThemeName.collectAsStateWithLifecycle()
             SettingsScreen(
                 currentTheme = themeName,
@@ -130,8 +129,6 @@ fun ApplicationNavController() {
                 onApplyTerminalThemeColorsChanged = settingsRepo::setApplyTerminalThemeColors,
                 currentTerminalFontSize = terminalFontSize,
                 onTerminalFontSizeChanged = settingsRepo::setTerminalFontSize,
-                currentTerminalColumns = terminalColumns,
-                onTerminalColumnsChanged = settingsRepo::setTerminalColumns,
                 onTerminalCustomActionsChanged = settingsRepo::setTerminalCustomKeyGroups,
                 backupViewModel = backupViewModel,
                 onBack = {

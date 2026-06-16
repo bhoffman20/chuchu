@@ -15,7 +15,10 @@ import kotlinx.coroutines.flow.asStateFlow
 class SettingsRepository(context: Context) {
 
     private val prefs: SharedPreferences =
-        context.getSharedPreferences("chuchu_settings", Context.MODE_PRIVATE)
+        context.getSharedPreferences("chuchu_settings", Context.MODE_PRIVATE).also {
+            // Removed in favor of font-size-driven column count; clean up stale value.
+            if (it.contains("terminal_columns")) it.edit().remove("terminal_columns").apply()
+        }
 
     private val _themeName = MutableStateFlow(prefs.getString(KEY_THEME, DEFAULT_THEME) ?: DEFAULT_THEME)
     val themeName: StateFlow<String> = _themeName.asStateFlow()
@@ -62,11 +65,6 @@ class SettingsRepository(context: Context) {
         prefs.getFloat(KEY_TERMINAL_FONT_SIZE, DEFAULT_TERMINAL_FONT_SIZE),
     )
     val terminalFontSize: StateFlow<Float> = _terminalFontSize.asStateFlow()
-
-    private val _terminalColumns = MutableStateFlow(
-        prefs.getInt(KEY_TERMINAL_COLUMNS, 0),
-    )
-    val terminalColumns: StateFlow<Int> = _terminalColumns.asStateFlow()
 
     fun setTheme(name: String) {
         prefs.edit().putString(KEY_THEME, name).apply()
@@ -132,11 +130,6 @@ class SettingsRepository(context: Context) {
         _terminalFontSize.value = sizeSp
     }
 
-    fun setTerminalColumns(columns: Int) {
-        prefs.edit().putInt(KEY_TERMINAL_COLUMNS, columns).apply()
-        _terminalColumns.value = columns
-    }
-
     private fun loadAccessoryLayoutIds(): List<String> {
         val stored = prefs.getString(KEY_ACCESSORY_LAYOUT, null)
             ?: return TerminalAccessoryLayoutStore.defaultLayoutIds()
@@ -166,7 +159,6 @@ class SettingsRepository(context: Context) {
         private const val KEY_LIGHT_THEME = "light_theme_name"
         private const val KEY_APPLY_TERMINAL_THEME_COLORS = "apply_terminal_theme_colors"
         private const val KEY_TERMINAL_FONT_SIZE = "terminal_font_size_sp"
-        private const val KEY_TERMINAL_COLUMNS = "terminal_columns"
         const val DEFAULT_THEME = "Catppuccin Mocha"
         const val DEFAULT_LIGHT_THEME = "Catppuccin Latte"
         val DEFAULT_THEME_MODE = ThemeMode.System
