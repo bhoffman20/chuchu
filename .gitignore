@@ -16,11 +16,16 @@ scripts/
 # Android
 android/app/src/main/jniLibs/
 android/app/key.jks
-/build
-/captures
+build/
+captures/
 
 # Zig
 zig-src/.zig-cache/
 zig-src/zig-out/
 zig-out/
 .comview/
+
+# Helper stuff
+doc/plans/
+gradleww
+

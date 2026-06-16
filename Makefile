@@ -5,6 +5,8 @@ build:
 
 app:
 	cd android && ./gradlew assembleDebug
+
+install:
 	cd android && ./gradlew installDebug
 	adb shell am start -n com.jossephus.chuchu/.MainActivity
 
