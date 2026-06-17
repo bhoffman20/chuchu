@@ -79,6 +79,7 @@ import com.jossephus.chuchu.ui.screens.Files.UploadProgress
 import com.jossephus.chuchu.ui.screens.Files.formatFileSize
 import com.jossephus.chuchu.ui.screens.Terminal.TerminalTabMode
 import com.jossephus.chuchu.ui.terminal.AccessoryAction
+import com.jossephus.chuchu.ui.terminal.BuiltinCommand
 import com.jossephus.chuchu.ui.terminal.ChuchuHint
 import com.jossephus.chuchu.ui.terminal.ChuchuKeyBindings
 import com.jossephus.chuchu.ui.terminal.CustomActionModifier
@@ -345,46 +346,39 @@ fun TerminalScreen(
     val chuchuKeys =
         remember(vm, tabMode, currentTerminalCustomKeyGroups, builtinShortcuts) {
             val isStrip = tabMode == TerminalTabMode.Strip
-            val builtinCommandHandlers: Map<String, () -> Unit> = mapOf(
-                "tabs" to {
+            val builtinCommandHandlers: Map<BuiltinCommand, () -> Unit> = mapOf(
+                BuiltinCommand.Tabs to {
                     if (isStrip) {
                         showGlobalTabManager = true
                     } else {
                         showTabSheet = true
                     }
                 },
-                "new_tab" to {
+                BuiltinCommand.NewTab to {
                     vm.duplicateActiveTab()
                     vm.selectConnectionTab(ConnectionTab.Terminal)
                     showTabSheet = false
                 },
-                "close" to {
+                BuiltinCommand.Close to {
                     val activeId = vm.activeTabId.value
                     if (activeId != null) vm.closeTab(activeId)
                 },
-                "actions" to { settingsRepo.setShowCustomActionsFab(!showCustomActionsFab) },
-                "settings" to { onOpenSettings() },
+                BuiltinCommand.Actions to { settingsRepo.setShowCustomActionsFab(!showCustomActionsFab) },
+                BuiltinCommand.Settings to { onOpenSettings() },
             )
-            val builtinHints = builtinShortcuts
-                .filter { it.value.isNotEmpty() }
-                .mapNotNull { (commandId, shortcut) ->
-                    val label = when (commandId) {
-                        "tabs" -> "tabs"
-                        "new_tab" -> "new tab"
-                        "actions" -> "actions"
-                        "settings" -> "settings"
-                        "close" -> "close"
-                        else -> return@mapNotNull null
-                    }
-                    ChuchuHint(key = shortcut, description = label)
-                }
-            val builtinHandlers: Map<Char, () -> Unit> = builtinShortcuts
-                .filter { it.value.isNotEmpty() }
-                .mapNotNull { (commandId, shortcut) ->
-                    val handler = builtinCommandHandlers[commandId] ?: return@mapNotNull null
-                    shortcut.first().lowercaseChar() to handler
-                }
-                .toMap()
+            // Build builtin hints and handlers in one pass so they stay consistent.
+            // First binding for a key wins (settings already prevents duplicates).
+            val builtinHints = mutableListOf<ChuchuHint>()
+            val builtinHandlers = mutableMapOf<Char, () -> Unit>()
+            builtinShortcuts.forEach { (commandId, shortcut) ->
+                if (shortcut.isEmpty()) return@forEach
+                val command = BuiltinCommand.fromId(commandId) ?: return@forEach
+                val handler = builtinCommandHandlers[command] ?: return@forEach
+                val keyChar = shortcut.first().lowercaseChar()
+                if (keyChar in builtinHandlers) return@forEach
+                builtinHandlers[keyChar] = handler
+                builtinHints += ChuchuHint(key = shortcut, description = command.label)
+            }
             val builtinKeys = builtinHandlers.keys.toSet()
             val customHints = mutableListOf<ChuchuHint>()
             val customHandlers = mutableMapOf<Char, () -> Unit>()
