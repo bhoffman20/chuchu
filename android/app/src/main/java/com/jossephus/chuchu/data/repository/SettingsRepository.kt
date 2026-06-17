@@ -113,8 +113,9 @@ class SettingsRepository(context: Context) {
     }
 
     fun setTerminalFontSize(sizeSp: Float) {
-        prefs.edit().putFloat(KEY_TERMINAL_FONT_SIZE, sizeSp).apply()
-        _terminalFontSize.value = sizeSp
+        val clamped = sizeSp.coerceIn(MIN_TERMINAL_FONT_SIZE, MAX_TERMINAL_FONT_SIZE)
+        prefs.edit().putFloat(KEY_TERMINAL_FONT_SIZE, clamped).apply()
+        _terminalFontSize.value = clamped
     }
 
     private fun loadAccessoryLayoutIds(): List<String> {
@@ -150,6 +151,8 @@ class SettingsRepository(context: Context) {
         val DEFAULT_THEME_MODE = ThemeMode.System
         const val DEFAULT_FONT = "jetbrains_mono"
         const val DEFAULT_TERMINAL_FONT_SIZE = 14f
+        const val MIN_TERMINAL_FONT_SIZE = 6f
+        const val MAX_TERMINAL_FONT_SIZE = 72f
 
         @Volatile
         private var instance: SettingsRepository? = null
