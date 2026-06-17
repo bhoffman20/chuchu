@@ -49,6 +49,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import com.jossephus.chuchu.ui.components.ChuButton
 import com.jossephus.chuchu.ui.components.ChuButtonVariant
 import com.jossephus.chuchu.ui.components.ChuCard
@@ -319,6 +320,32 @@ internal fun TerminalCustomActionsEditorSheet(
                                 singleLine = true,
                                 autoFocus = false,
                             )
+                            ChuTextField(
+                                value = valueInput,
+                                onValueChange = { updated ->
+                                    if (updated.contains('\n') || updated.contains('\r')) {
+                                        valueInput = updated
+                                        registerDraftItem()
+                                    } else {
+                                        valueInput = updated
+                                    }
+                                },
+                                label = "Value",
+                                placeholder = ":q",
+                                singleLine = false,
+                                autoFocus = false,
+                                modifier = Modifier.heightIn(min = 72.dp),
+                            )
+                            ChuTextField(
+                                value = shortcutInput,
+                                onValueChange = { updated ->
+                                    shortcutInput = updated.takeLast(1)
+                                },
+                                label = "Shortcut",
+                                placeholder = "single key for chuchu command",
+                                singleLine = true,
+                                autoFocus = false,
+                            )
                             ChuButton(
                                 onClick = { showModifierDropdown = !showModifierDropdown },
                                 variant = ChuButtonVariant.Outlined,
@@ -363,33 +390,6 @@ internal fun TerminalCustomActionsEditorSheet(
                                     }
                                 }
                             }
-
-                            ChuTextField(
-                                value = valueInput,
-                                onValueChange = { updated ->
-                                    if (updated.contains('\n') || updated.contains('\r')) {
-                                        valueInput = updated
-                                        registerDraftItem()
-                                    } else {
-                                        valueInput = updated
-                                    }
-                                },
-                                label = "Value",
-                                placeholder = ":q",
-                                singleLine = false,
-                                autoFocus = false,
-                                modifier = Modifier.heightIn(min = 72.dp),
-                            )
-                            ChuTextField(
-                                value = shortcutInput,
-                                onValueChange = { updated ->
-                                    shortcutInput = updated.takeLast(1)
-                                },
-                                label = "Shortcut",
-                                placeholder = "single key for chuchu command",
-                                singleLine = true,
-                                autoFocus = false,
-                            )
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                 ChuText(
                                     text = if (valuePreview.isBlank()) "Preview: (empty)" else "Preview: $valuePreview",
@@ -405,7 +405,7 @@ internal fun TerminalCustomActionsEditorSheet(
                                     bracketed = true,
                                     modifier = Modifier.weight(1f),
                                 ) {
-                                    ChuText("add", style = typography.label)
+                                    ChuText(if (editingIndex != null) "save" else "add", style = typography.label)
                                 }
                                 ChuButton(
                                     onClick = {
@@ -522,16 +522,20 @@ private fun CustomActionSwipeRow(
             ) {
                 ChuText("⋮", style = typography.label, color = colors.textMuted)
             }
-            ChuText(keyText, style = typography.label, modifier = Modifier.weight(1f))
-            if (shortcut != null) {
-                ChuText(
-                    "[${shortcut}]",
-                    style = typography.labelSmall,
-                    color = colors.accent,
-                    modifier = Modifier.padding(end = 8.dp),
-                )
-            }
-            ChuText(readableStoredActionPreview(valueText), style = typography.body, color = colors.textSecondary)
+            ChuText(
+                text = if (shortcut != null) "$keyText [${shortcut}]" else keyText,
+                style = typography.label,
+                maxLines = 1,
+                modifier = Modifier.padding(end = 8.dp),
+            )
+            ChuText(
+                text = readableStoredActionPreview(valueText),
+                style = typography.body,
+                color = colors.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
