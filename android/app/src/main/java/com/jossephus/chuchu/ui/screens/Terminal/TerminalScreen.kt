@@ -144,15 +144,24 @@ private fun TerminalCustomActionsFab(
     groups: List<TerminalCustomKeyGroup>,
     onActionClick: (TerminalCustomAction) -> Unit,
     modifier: Modifier = Modifier,
+    filteredActions: List<TerminalCustomAction>? = null,
+    onClearFilter: () -> Unit = {},
 ) {
     val colors = ChuColors.current
     val typography = ChuTypography.current
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(filteredActions != null) }
     var selectedGroupKey by remember { mutableStateOf<String?>(null) }
     val selectedGroup =
         remember(selectedGroupKey, groups) {
             groups.firstOrNull { it.keyLabel == selectedGroupKey }
         }
+
+    LaunchedEffect(filteredActions) {
+        if (filteredActions != null) {
+            expanded = true
+            selectedGroupKey = null
+        }
+    }
 
     Column(
         modifier = modifier,
@@ -164,7 +173,34 @@ private fun TerminalCustomActionsFab(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (selectedGroup == null) {
+                if (filteredActions != null) {
+                    filteredActions.forEach { action ->
+                        ChuButton(
+                            onClick = {
+                                onActionClick(action)
+                                expanded = false
+                                onClearFilter()
+                            },
+                            variant = ChuButtonVariant.Outlined,
+                            bracketed = true,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        ) {
+                            ChuText(action.label, style = typography.label)
+                        }
+                    }
+                    ChuButton(
+                        onClick = {
+                            expanded = false
+                            onClearFilter()
+                        },
+                        variant = ChuButtonVariant.Ghost,
+                        bracketed = true,
+                        borderColor = colors.textMuted,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    ) {
+                        ChuText("<", style = typography.label, color = colors.textMuted)
+                    }
+                } else if (selectedGroup == null) {
                     groups.forEach { group ->
                         ChuButton(
                             onClick = {
@@ -218,6 +254,7 @@ private fun TerminalCustomActionsFab(
                 expanded = !expanded
                 if (!expanded) {
                     selectedGroupKey = null
+                    onClearFilter()
                 }
             },
             variant = if (expanded) ChuButtonVariant.Ghost else ChuButtonVariant.Filled,
@@ -303,6 +340,7 @@ fun TerminalScreen(
         mutableStateOf(terminalPrefs.getFloat("terminal_font_size_sp", 14f).coerceAtLeast(0.1f))
     }
     val showCustomActionsFab by settingsRepo.showCustomActionsFab.collectAsStateWithLifecycle()
+    var fabFilteredActions by remember { mutableStateOf<List<TerminalCustomAction>?>(null) }
     val chuchuKeys =
         remember(vm, tabMode, currentTerminalCustomKeyGroups) {
             val isStrip = tabMode == TerminalTabMode.Strip
@@ -329,22 +367,31 @@ fun TerminalScreen(
                 'a' to { settingsRepo.setShowCustomActionsFab(!showCustomActionsFab) },
                 's' to { onOpenSettings() },
             )
-            val builtinKeys = builtinHints.map { it.key }.toSet()
+            val builtinKeys = builtinHints.map { it.key.first().lowercaseChar() }.toSet()
             val customHints = mutableListOf<ChuchuHint>()
             val customHandlers = mutableMapOf<Char, () -> Unit>()
             val seenShortcuts = builtinKeys.toMutableSet()
+            val shortcutActionsMap = mutableMapOf<Char, MutableList<TerminalCustomAction>>()
             currentTerminalCustomKeyGroups.forEach { group ->
                 group.actions.forEach { action ->
                     val shortcut = action.shortcut?.takeIf { it.length == 1 } ?: return@forEach
                     val keyChar = shortcut.first().lowercaseChar()
-                    if (!seenShortcuts.add(keyChar.toString())) return@forEach
-                    customHints += ChuchuHint(key = keyChar.toString(), description = group.keyLabel)
-                    customHandlers[keyChar] = {
-                        val decoded = decodeCustomActionValue(action.payload)
+                    if (keyChar in builtinKeys) return@forEach
+                    shortcutActionsMap.getOrPut(keyChar) { mutableListOf() }.add(action)
+                }
+            }
+            shortcutActionsMap.forEach { (keyChar, actions) ->
+                if (!seenShortcuts.add(keyChar)) return@forEach
+                customHints += ChuchuHint(key = keyChar.toString(), description = "${actions.size} actions")
+                customHandlers[keyChar] = {
+                    if (actions.size == 1) {
+                        val decoded = decodeCustomActionValue(actions.first().payload)
                         val rawText = decoded.text +
                             if (CustomActionModifier.Enter in decoded.modifiers) "\n" else ""
                         val actionModifierState = modifierStateForCustomAction(decoded.modifiers)
                         vm.dispatchTextWithModifierState(rawText, actionModifierState)
+                    } else {
+                        fabFilteredActions = actions
                     }
                 }
             }
@@ -1395,6 +1442,8 @@ fun TerminalScreen(
                                         modifier =
                                             Modifier.align(Alignment.BottomEnd)
                                                 .padding(end = 14.dp, bottom = 12.dp),
+                                        filteredActions = fabFilteredActions,
+                                        onClearFilter = { fabFilteredActions = null },
                                     )
                                 }
 
