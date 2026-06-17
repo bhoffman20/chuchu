@@ -48,6 +48,8 @@ fun SettingsScreen(
     currentAccessoryLayoutIds: List<String>,
     accessoryBarSingleRow: Boolean,
     currentTerminalCustomKeyGroups: List<TerminalCustomKeyGroup>,
+    showCustomActionsFab: Boolean,
+    onShowCustomActionsFabChanged: (Boolean) -> Unit,
     currentTabMode: TerminalTabMode = TerminalTabMode.Classic,
     onTabModeChanged: (TerminalTabMode) -> Unit = {},
     themeMode: ThemeMode,
@@ -171,6 +173,8 @@ fun SettingsScreen(
                         onTerminalFontSizeChanged = onTerminalFontSizeChanged,
                         currentTerminalCustomKeyGroups = currentTerminalCustomKeyGroups,
                         onEditCustomActions = { showCustomActionEditor = true },
+                        showCustomActionsFab = showCustomActionsFab,
+                        onShowCustomActionsFabChanged = onShowCustomActionsFabChanged,
                         currentTabMode = currentTabMode,
                         onTabModeChanged = onTabModeChanged,
                     )
