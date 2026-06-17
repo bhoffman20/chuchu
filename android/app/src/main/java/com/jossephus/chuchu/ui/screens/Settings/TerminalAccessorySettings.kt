@@ -348,21 +348,24 @@ internal fun TerminalSettings(
                     color = colors.textSecondary,
                 )
 
-                val builtinCommandLabels = mapOf(
-                    "tabs" to "tabs",
-                    "new_tab" to "new tab",
-                    "actions" to "actions",
-                    "settings" to "settings",
-                    "close" to "close",
+                val builtinCommandLabels = listOf(
+                    Triple("tabs", "tabs", "show tab manager"),
+                    Triple("new_tab", "new tab", "open a new tab"),
+                    Triple("actions", "actions", "toggle floating custom actions button"),
+                    Triple("settings", "settings", "open settings"),
+                    Triple("close", "close", "close the active tab"),
                 )
 
-                builtinCommandLabels.forEach { (commandId, label) ->
+                builtinCommandLabels.forEach { (commandId, label, description) ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        ChuText(label, style = typography.label)
+                        Column(modifier = Modifier.weight(1f)) {
+                            ChuText(label, style = typography.label)
+                            ChuText(description, style = typography.bodySmall, color = colors.textMuted)
+                        }
                         ChuTextField(
                             value = builtinShortcuts[commandId] ?: "",
                             onValueChange = { updated ->
