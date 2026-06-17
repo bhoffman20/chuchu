@@ -423,7 +423,7 @@ internal fun TerminalSettings(
                 modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                ChuText("builtin shortcuts", style = typography.label)
+                ChuText("chuchu commands", style = typography.label)
                 ChuText(
                     "assign shortcut keys for builtin commands. empty key hides the command. overrides custom action shortcut keys.",
                     style = typography.body,
