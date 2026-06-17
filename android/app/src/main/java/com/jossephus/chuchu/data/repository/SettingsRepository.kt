@@ -54,7 +54,8 @@ class SettingsRepository(context: Context) {
     val lightThemeName: StateFlow<String> = _lightThemeName.asStateFlow()
 
     private val _terminalFontSize = MutableStateFlow(
-        prefs.getFloat(KEY_TERMINAL_FONT_SIZE, DEFAULT_TERMINAL_FONT_SIZE),
+        prefs.getFloat(KEY_TERMINAL_FONT_SIZE, DEFAULT_TERMINAL_FONT_SIZE)
+            .coerceIn(MIN_TERMINAL_FONT_SIZE, MAX_TERMINAL_FONT_SIZE),
     )
     val terminalFontSize: StateFlow<Float> = _terminalFontSize.asStateFlow()
 
