@@ -53,11 +53,6 @@ class SettingsRepository(context: Context) {
     )
     val lightThemeName: StateFlow<String> = _lightThemeName.asStateFlow()
 
-    private val _applyTerminalThemeColors = MutableStateFlow(
-        prefs.getBoolean(KEY_APPLY_TERMINAL_THEME_COLORS, true),
-    )
-    val applyTerminalThemeColors: StateFlow<Boolean> = _applyTerminalThemeColors.asStateFlow()
-
     private val _terminalFontSize = MutableStateFlow(
         prefs.getFloat(KEY_TERMINAL_FONT_SIZE, DEFAULT_TERMINAL_FONT_SIZE),
     )
@@ -117,11 +112,6 @@ class SettingsRepository(context: Context) {
         _lightThemeName.value = name
     }
 
-    fun setApplyTerminalThemeColors(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_APPLY_TERMINAL_THEME_COLORS, enabled).apply()
-        _applyTerminalThemeColors.value = enabled
-    }
-
     fun setTerminalFontSize(sizeSp: Float) {
         prefs.edit().putFloat(KEY_TERMINAL_FONT_SIZE, sizeSp).apply()
         _terminalFontSize.value = sizeSp
@@ -154,7 +144,6 @@ class SettingsRepository(context: Context) {
         private const val KEY_REQUIRE_AUTH_ON_CONNECT = "require_auth_on_connect"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_LIGHT_THEME = "light_theme_name"
-        private const val KEY_APPLY_TERMINAL_THEME_COLORS = "apply_terminal_theme_colors"
         private const val KEY_TERMINAL_FONT_SIZE = "terminal_font_size_sp"
         const val DEFAULT_THEME = "Catppuccin Mocha"
         const val DEFAULT_LIGHT_THEME = "Catppuccin Latte"

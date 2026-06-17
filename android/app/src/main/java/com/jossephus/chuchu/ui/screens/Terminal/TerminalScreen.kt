@@ -273,7 +273,6 @@ fun TerminalScreen(
     val useSingleRowAccessoryBar by settingsRepo.accessoryBarSingleRow.collectAsStateWithLifecycle()
     val currentTerminalCustomKeyGroups by
         settingsRepo.terminalCustomKeyGroups.collectAsStateWithLifecycle()
-    val applyTerminalThemeColors by settingsRepo.applyTerminalThemeColors.collectAsStateWithLifecycle()
     val settingsFontSize by settingsRepo.terminalFontSize.collectAsStateWithLifecycle()
 
     val accessoryLayout =
@@ -679,30 +678,20 @@ fun TerminalScreen(
                 }
 
                 Box(modifier = screenInsetsModifier.fillMaxSize()) {
-                    LaunchedEffect(ghosttyTheme, colors, isDarkTheme, applyTerminalThemeColors) {
+                    LaunchedEffect(ghosttyTheme, colors, isDarkTheme) {
                         vm.onColorSchemeChanged(isDarkTheme)
-                        if (applyTerminalThemeColors) {
-                            vm.onDefaultColorsChanged(
-                                fg =
-                                    ghosttyTheme?.foreground?.toRgbIntArray()
-                                        ?: colors.textPrimary.toRgbIntArray(),
-                                bg =
-                                    ghosttyTheme?.background?.toRgbIntArray()
-                                        ?: colors.background.toRgbIntArray(),
-                                cursor =
-                                    ghosttyTheme?.cursorColor?.toRgbIntArray()
-                                        ?: colors.accent.toRgbIntArray(),
-                                palette = ghosttyTheme?.toTerminalPaletteBytes(),
-                            )
-                        } else {
-                            // Let ghostty-vt use its built-in xterm 256-color defaults.
-                            vm.onDefaultColorsChanged(
-                                fg = null,
-                                bg = null,
-                                cursor = null,
-                                palette = null,
-                            )
-                        }
+                        vm.onDefaultColorsChanged(
+                            fg =
+                                ghosttyTheme?.foreground?.toRgbIntArray()
+                                    ?: colors.textPrimary.toRgbIntArray(),
+                            bg =
+                                ghosttyTheme?.background?.toRgbIntArray()
+                                    ?: colors.background.toRgbIntArray(),
+                            cursor =
+                                ghosttyTheme?.cursorColor?.toRgbIntArray()
+                                    ?: colors.accent.toRgbIntArray(),
+                            palette = ghosttyTheme?.toTerminalPaletteBytes(),
+                        )
                     }
 
                     LaunchedEffect(sessionState.bellCount) {

@@ -102,7 +102,6 @@ fun ApplicationNavController() {
             val customKeyGroups by settingsRepo.terminalCustomKeyGroups.collectAsStateWithLifecycle()
             val tabMode by settingsRepo.terminalTabMode.collectAsStateWithLifecycle()
             val themeMode by settingsRepo.themeMode.collectAsStateWithLifecycle()
-            val applyTerminalThemeColors by settingsRepo.applyTerminalThemeColors.collectAsStateWithLifecycle()
             val terminalFontSize by settingsRepo.terminalFontSize.collectAsStateWithLifecycle()
             val lightThemeName by settingsRepo.lightThemeName.collectAsStateWithLifecycle()
             SettingsScreen(
@@ -125,8 +124,6 @@ fun ApplicationNavController() {
                 onRequireAuthOnConnectChanged = settingsRepo::setRequireAuthOnConnect,
                 onAccessoryLayoutChanged = settingsRepo::setAccessoryLayoutIds,
                 onAccessoryBarSingleRowChanged = settingsRepo::setAccessoryBarSingleRow,
-                applyTerminalThemeColors = applyTerminalThemeColors,
-                onApplyTerminalThemeColorsChanged = settingsRepo::setApplyTerminalThemeColors,
                 currentTerminalFontSize = terminalFontSize,
                 onTerminalFontSizeChanged = settingsRepo::setTerminalFontSize,
                 onTerminalCustomActionsChanged = settingsRepo::setTerminalCustomKeyGroups,

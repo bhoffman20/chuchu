@@ -76,8 +76,6 @@ internal fun TerminalSettings(
     onEditAccessoryLayout: () -> Unit,
     accessoryBarSingleRow: Boolean,
     onAccessoryBarSingleRowChanged: (Boolean) -> Unit,
-    applyTerminalThemeColors: Boolean = true,
-    onApplyTerminalThemeColorsChanged: (Boolean) -> Unit = {},
     currentTerminalFontSize: Float = 14f,
     onTerminalFontSizeChanged: (Float) -> Unit = {},
     currentTerminalCustomKeyGroups: List<TerminalCustomKeyGroup>,
@@ -109,36 +107,6 @@ internal fun TerminalSettings(
             tabModeContainerBounds = coordinates.boundsInWindow()
         },
     ) {
-        // Theme color toggle
-        ChuCard(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        ChuText("apply theme to terminal", style = typography.label)
-                        ChuText(
-                            "when off, terminal uses standard xterm colors",
-                            style = typography.bodySmall,
-                            color = colors.textMuted,
-                        )
-                    }
-                    ChuSwitch(
-                        checked = applyTerminalThemeColors,
-                        onCheckedChange = onApplyTerminalThemeColorsChanged,
-                    )
-                }
-            }
-        }
-
         // Font size selector
         ChuCard(modifier = Modifier.fillMaxWidth()) {
             Column(
