@@ -101,6 +101,7 @@ fun ApplicationNavController() {
             val accessoryBarSingleRow by settingsRepo.accessoryBarSingleRow.collectAsStateWithLifecycle()
             val customKeyGroups by settingsRepo.terminalCustomKeyGroups.collectAsStateWithLifecycle()
             val showCustomActionsFab by settingsRepo.showCustomActionsFab.collectAsStateWithLifecycle()
+            val builtinShortcuts by settingsRepo.builtinShortcuts.collectAsStateWithLifecycle()
             val tabMode by settingsRepo.terminalTabMode.collectAsStateWithLifecycle()
             val themeMode by settingsRepo.themeMode.collectAsStateWithLifecycle()
             val lightThemeName by settingsRepo.lightThemeName.collectAsStateWithLifecycle()
@@ -114,6 +115,8 @@ fun ApplicationNavController() {
                 currentTerminalCustomKeyGroups = customKeyGroups,
                 showCustomActionsFab = showCustomActionsFab,
                 onShowCustomActionsFabChanged = settingsRepo::setShowCustomActionsFab,
+                builtinShortcuts = builtinShortcuts,
+                onBuiltinShortcutsChanged = settingsRepo::setBuiltinShortcuts,
                 currentTabMode = tabMode,
                 onTabModeChanged = settingsRepo::setTerminalTabMode,
                 themeMode = themeMode,

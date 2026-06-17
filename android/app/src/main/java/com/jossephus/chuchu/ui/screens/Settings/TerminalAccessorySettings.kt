@@ -56,6 +56,7 @@ import com.jossephus.chuchu.ui.components.ChuButtonVariant
 import com.jossephus.chuchu.ui.components.ChuCard
 import com.jossephus.chuchu.ui.components.ChuText
 import com.jossephus.chuchu.ui.components.ChuSwitch
+import com.jossephus.chuchu.ui.components.ChuTextField
 import com.jossephus.chuchu.ui.terminal.AccessoryKeyItem
 import com.jossephus.chuchu.ui.terminal.KeyboardAccessoryBar
 import com.jossephus.chuchu.ui.terminal.ModifierState
@@ -75,6 +76,8 @@ internal fun TerminalSettings(
     onEditCustomActions: () -> Unit,
     showCustomActionsFab: Boolean,
     onShowCustomActionsFabChanged: (Boolean) -> Unit,
+    builtinShortcuts: Map<String, String> = emptyMap(),
+    onBuiltinShortcutsChanged: (Map<String, String>) -> Unit = {},
     currentTabMode: TerminalTabMode = TerminalTabMode.Classic,
     onTabModeChanged: (TerminalTabMode) -> Unit = {},
 ) {
@@ -329,6 +332,52 @@ internal fun TerminalSettings(
                         checked = showCustomActionsFab,
                         onCheckedChange = onShowCustomActionsFabChanged,
                     )
+                }
+            }
+        }
+
+        ChuCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                ChuText("builtin shortcuts", style = typography.label)
+                ChuText(
+                    "assign shortcut keys for builtin commands. empty key hides the command.",
+                    style = typography.body,
+                    color = colors.textSecondary,
+                )
+
+                val builtinCommandLabels = mapOf(
+                    "tabs" to "tabs",
+                    "new_tab" to "new tab",
+                    "actions" to "actions",
+                    "settings" to "settings",
+                    "close" to "close",
+                )
+
+                builtinCommandLabels.forEach { (commandId, label) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ChuText(label, style = typography.label)
+                        ChuTextField(
+                            value = builtinShortcuts[commandId] ?: "",
+                            onValueChange = { updated ->
+                                val newShortcuts = builtinShortcuts.toMutableMap()
+                                newShortcuts[commandId] = updated.takeLast(1)
+                                onBuiltinShortcutsChanged(newShortcuts)
+                            },
+                            label = label,
+                            showLabel = false,
+                            placeholder = "key",
+                            singleLine = true,
+                            autoFocus = false,
+                            modifier = Modifier.width(64.dp),
+                        )
+                    }
                 }
             }
         }
