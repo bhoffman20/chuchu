@@ -3,6 +3,7 @@ package com.jossephus.chuchu.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import com.jossephus.chuchu.ui.screens.Terminal.TerminalTabMode
+import com.jossephus.chuchu.ui.terminal.BuiltinShortcutStore
 import com.jossephus.chuchu.ui.terminal.TerminalAccessoryLayoutStore
 import com.jossephus.chuchu.ui.theme.ChuFontOption
 import com.jossephus.chuchu.ui.theme.ThemeMode
@@ -89,9 +90,9 @@ class SettingsRepository(context: Context) {
     }
 
     fun setBuiltinShortcuts(shortcuts: Map<String, String>) {
-        val serialized = serializeBuiltinShortcuts(shortcuts)
-        prefs.edit().putString(KEY_BUILTIN_SHORTCUTS, serialized).apply()
-        _builtinShortcuts.value = shortcuts
+        val normalized = BuiltinShortcutStore.normalize(shortcuts)
+        prefs.edit().putString(KEY_BUILTIN_SHORTCUTS, BuiltinShortcutStore.serialize(normalized)).apply()
+        _builtinShortcuts.value = normalized
     }
 
     fun setAccessoryBarSingleRow(enabled: Boolean) {
@@ -142,7 +143,7 @@ class SettingsRepository(context: Context) {
 
     private fun loadBuiltinShortcuts(): Map<String, String> {
         val stored = prefs.getString(KEY_BUILTIN_SHORTCUTS, null)
-        return parseBuiltinShortcuts(stored)
+        return BuiltinShortcutStore.parse(stored)
     }
 
     companion object {
@@ -182,32 +183,5 @@ class SettingsRepository(context: Context) {
                 TerminalTabMode.Classic
             }
 
-        private fun parseBuiltinShortcuts(raw: String?): Map<String, String> {
-            if (raw.isNullOrBlank()) return DEFAULT_BUILTIN_SHORTCUTS
-            val result = mutableMapOf<String, String>()
-            raw.split(",").forEach { part ->
-                val kv = part.split(":", limit = 2)
-                if (kv.size == 2) {
-                    val commandId = kv[0].trim()
-                    val shortcut = kv[1].trim()
-                    if (commandId.isNotEmpty()) {
-                        result[commandId] = shortcut
-                    }
-                }
-            }
-            return result.ifEmpty { DEFAULT_BUILTIN_SHORTCUTS }
-        }
-
-        private fun serializeBuiltinShortcuts(shortcuts: Map<String, String>): String {
-            return shortcuts.entries.joinToString(",") { "${it.key}:${it.value}" }
-        }
-
-        val DEFAULT_BUILTIN_SHORTCUTS: Map<String, String> = mapOf(
-            "tabs" to "t",
-            "new_tab" to "n",
-            "actions" to "a",
-            "settings" to "s",
-            "close" to "q",
-        )
     }
 }
