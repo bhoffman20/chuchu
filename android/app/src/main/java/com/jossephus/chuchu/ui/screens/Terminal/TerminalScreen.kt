@@ -382,7 +382,7 @@ fun TerminalScreen(
             }
             shortcutActionsMap.forEach { (keyChar, actions) ->
                 if (!seenShortcuts.add(keyChar)) return@forEach
-                customHints += ChuchuHint(key = keyChar.toString(), description = "${actions.size} actions")
+                customHints += ChuchuHint(key = keyChar.toString(), description = "[${actions.joinToString(", ") { it.label }}]")
                 customHandlers[keyChar] = {
                     if (actions.size == 1) {
                         val decoded = decodeCustomActionValue(actions.first().payload)
