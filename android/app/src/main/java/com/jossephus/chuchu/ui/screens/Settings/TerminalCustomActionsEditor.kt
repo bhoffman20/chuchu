@@ -535,14 +535,15 @@ private fun CustomActionSwipeRow(
                 maxLines = 1,
                 modifier = Modifier.padding(end = 8.dp),
             )
-            ChuText(
-                text = readableStoredActionPreview(valueText),
-                style = typography.body,
-                color = colors.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                ChuText(
+                    text = readableStoredActionPreview(valueText),
+                    style = typography.body,
+                    color = colors.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
