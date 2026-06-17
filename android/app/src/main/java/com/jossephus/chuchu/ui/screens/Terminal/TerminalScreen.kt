@@ -356,39 +356,52 @@ fun TerminalScreen(
         terminalFontSizeSp = settingsFontSize.coerceAtLeast(0.1f)
     }
     val showCustomActionsFab by settingsRepo.showCustomActionsFab.collectAsStateWithLifecycle()
+    val builtinShortcuts by settingsRepo.builtinShortcuts.collectAsStateWithLifecycle()
     var fabFilteredActions by remember { mutableStateOf<List<TerminalCustomAction>?>(null) }
     val chuchuKeys =
-        remember(vm, tabMode, currentTerminalCustomKeyGroups) {
+        remember(vm, tabMode, currentTerminalCustomKeyGroups, builtinShortcuts) {
             val isStrip = tabMode == TerminalTabMode.Strip
-            val builtinHints = listOf(
-                ChuchuHint(key = "t", description = "tabs"),
-                ChuchuHint(key = "n", description = "new tab"),
-                ChuchuHint(key = "a", description = "actions"),
-                ChuchuHint(key = "s", description = "settings"),
-                ChuchuHint(key = "q", description = "close"),
-            )
-            val builtinHandlers: Map<Char, () -> Unit> = mapOf(
-                't' to {
+            val builtinCommandHandlers: Map<String, () -> Unit> = mapOf(
+                "tabs" to {
                     if (isStrip) {
                         showGlobalTabManager = true
                     } else {
                         showTabSheet = true
                     }
                 },
-                'n' to
-                    {
-                        vm.duplicateActiveTab()
-                        vm.selectConnectionTab(ConnectionTab.Terminal)
-                        showTabSheet = false
-                    },
-                'q' to {
+                "new_tab" to {
+                    vm.duplicateActiveTab()
+                    vm.selectConnectionTab(ConnectionTab.Terminal)
+                    showTabSheet = false
+                },
+                "close" to {
                     val activeId = vm.activeTabId.value
                     if (activeId != null) vm.closeTab(activeId)
                 },
-                'a' to { settingsRepo.setShowCustomActionsFab(!showCustomActionsFab) },
-                's' to { onOpenSettings() },
+                "actions" to { settingsRepo.setShowCustomActionsFab(!showCustomActionsFab) },
+                "settings" to { onOpenSettings() },
             )
-            val builtinKeys = builtinHints.map { it.key.first().lowercaseChar() }.toSet()
+            val builtinHints = builtinShortcuts
+                .filter { it.value.isNotEmpty() }
+                .mapNotNull { (commandId, shortcut) ->
+                    val label = when (commandId) {
+                        "tabs" -> "tabs"
+                        "new_tab" -> "new tab"
+                        "actions" -> "actions"
+                        "settings" -> "settings"
+                        "close" -> "close"
+                        else -> return@mapNotNull null
+                    }
+                    ChuchuHint(key = shortcut, description = label)
+                }
+            val builtinHandlers: Map<Char, () -> Unit> = builtinShortcuts
+                .filter { it.value.isNotEmpty() }
+                .mapNotNull { (commandId, shortcut) ->
+                    val handler = builtinCommandHandlers[commandId] ?: return@mapNotNull null
+                    shortcut.first().lowercaseChar() to handler
+                }
+                .toMap()
+            val builtinKeys = builtinHandlers.keys.toSet()
             val customHints = mutableListOf<ChuchuHint>()
             val customHandlers = mutableMapOf<Char, () -> Unit>()
             val seenShortcuts = builtinKeys.toMutableSet()

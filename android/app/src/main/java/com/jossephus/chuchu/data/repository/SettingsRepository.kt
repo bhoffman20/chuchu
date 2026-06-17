@@ -37,6 +37,9 @@ class SettingsRepository(context: Context) {
     private val _showCustomActionsFab = MutableStateFlow(prefs.getBoolean(KEY_SHOW_CUSTOM_ACTIONS_FAB, true))
     val showCustomActionsFab: StateFlow<Boolean> = _showCustomActionsFab.asStateFlow()
 
+    private val _builtinShortcuts = MutableStateFlow(loadBuiltinShortcuts())
+    val builtinShortcuts: StateFlow<Map<String, String>> = _builtinShortcuts.asStateFlow()
+
     private val _accessoryBarSingleRow = MutableStateFlow(prefs.getBoolean(KEY_ACCESSORY_BAR_SINGLE_ROW, false))
     val accessoryBarSingleRow: StateFlow<Boolean> = _accessoryBarSingleRow.asStateFlow()
 
@@ -94,6 +97,12 @@ class SettingsRepository(context: Context) {
         _showCustomActionsFab.value = visible
     }
 
+    fun setBuiltinShortcuts(shortcuts: Map<String, String>) {
+        val serialized = serializeBuiltinShortcuts(shortcuts)
+        prefs.edit().putString(KEY_BUILTIN_SHORTCUTS, serialized).apply()
+        _builtinShortcuts.value = shortcuts
+    }
+
     fun setAccessoryBarSingleRow(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_ACCESSORY_BAR_SINGLE_ROW, enabled).apply()
         _accessoryBarSingleRow.value = enabled
@@ -146,12 +155,18 @@ class SettingsRepository(context: Context) {
         return TerminalCustomActionStore.parse(stored)
     }
 
+    private fun loadBuiltinShortcuts(): Map<String, String> {
+        val stored = prefs.getString(KEY_BUILTIN_SHORTCUTS, null)
+        return parseBuiltinShortcuts(stored)
+    }
+
     companion object {
         private const val KEY_THEME = "theme_name"
         private const val KEY_FONT = "font_name"
         private const val KEY_ACCESSORY_LAYOUT = "terminal_accessory_layout"
         private const val KEY_TERMINAL_CUSTOM_ACTIONS = "terminal_custom_actions"
         private const val KEY_SHOW_CUSTOM_ACTIONS_FAB = "show_custom_actions_fab"
+        private const val KEY_BUILTIN_SHORTCUTS = "builtin_shortcuts"
         private const val KEY_ACCESSORY_BAR_SINGLE_ROW = "terminal_accessory_bar_single_row"
         private const val KEY_TAB_MODE = "terminal_tab_mode"
         private const val KEY_APP_LOCK_ENABLED = "app_lock_enabled"
@@ -185,5 +200,33 @@ class SettingsRepository(context: Context) {
             } catch (_: IllegalArgumentException) {
                 TerminalTabMode.Classic
             }
+
+        private fun parseBuiltinShortcuts(raw: String?): Map<String, String> {
+            if (raw.isNullOrBlank()) return DEFAULT_BUILTIN_SHORTCUTS
+            val result = mutableMapOf<String, String>()
+            raw.split(",").forEach { part ->
+                val kv = part.split(":", limit = 2)
+                if (kv.size == 2) {
+                    val commandId = kv[0].trim()
+                    val shortcut = kv[1].trim()
+                    if (commandId.isNotEmpty()) {
+                        result[commandId] = shortcut
+                    }
+                }
+            }
+            return result.ifEmpty { DEFAULT_BUILTIN_SHORTCUTS }
+        }
+
+        private fun serializeBuiltinShortcuts(shortcuts: Map<String, String>): String {
+            return shortcuts.entries.joinToString(",") { "${it.key}:${it.value}" }
+        }
+
+        val DEFAULT_BUILTIN_SHORTCUTS: Map<String, String> = mapOf(
+            "tabs" to "t",
+            "new_tab" to "n",
+            "actions" to "a",
+            "settings" to "s",
+            "close" to "q",
+        )
     }
 }

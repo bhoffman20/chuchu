@@ -50,6 +50,8 @@ fun SettingsScreen(
     currentTerminalCustomKeyGroups: List<TerminalCustomKeyGroup>,
     showCustomActionsFab: Boolean,
     onShowCustomActionsFabChanged: (Boolean) -> Unit,
+    builtinShortcuts: Map<String, String> = emptyMap(),
+    onBuiltinShortcutsChanged: (Map<String, String>) -> Unit = {},
     currentTabMode: TerminalTabMode = TerminalTabMode.Classic,
     onTabModeChanged: (TerminalTabMode) -> Unit = {},
     themeMode: ThemeMode,
@@ -175,6 +177,8 @@ fun SettingsScreen(
                         onEditCustomActions = { showCustomActionEditor = true },
                         showCustomActionsFab = showCustomActionsFab,
                         onShowCustomActionsFabChanged = onShowCustomActionsFabChanged,
+                        builtinShortcuts = builtinShortcuts,
+                        onBuiltinShortcutsChanged = onBuiltinShortcutsChanged,
                         currentTabMode = currentTabMode,
                         onTabModeChanged = onTabModeChanged,
                     )
