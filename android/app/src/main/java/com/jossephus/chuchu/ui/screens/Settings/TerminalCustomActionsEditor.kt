@@ -233,14 +233,24 @@ internal fun TerminalCustomActionsEditorSheet(
                                 dragging = isDragging,
                                 dragOffsetPx = if (isDragging) dragOffsetPx else 0f,
                                 onEdit = {
-                                    keyInput = item.key
-                                    val decoded = decodeCustomActionValue(item.value)
-                                    enabledModifiers = decoded.modifiers
-                                    valueInput = decoded.text
-                                    shortcutInput = item.shortcut ?: ""
-                                    showModifierDropdown = true
-                                    showAddRow = true
-                                    editingIndex = index
+                                    if (editingIndex == index) {
+                                        editingIndex = null
+                                        showAddRow = false
+                                        keyInput = ""
+                                        valueInput = ""
+                                        shortcutInput = ""
+                                        enabledModifiers = emptySet()
+                                        showModifierDropdown = false
+                                    } else {
+                                        keyInput = item.key
+                                        val decoded = decodeCustomActionValue(item.value)
+                                        enabledModifiers = decoded.modifiers
+                                        valueInput = decoded.text
+                                        shortcutInput = item.shortcut ?: ""
+                                        showModifierDropdown = true
+                                        showAddRow = true
+                                        editingIndex = index
+                                    }
                                 },
                                 onDelete = {
                                     val nextItems = draftItems.filterIndexed { rowIndex, _ -> rowIndex != index }
