@@ -51,6 +51,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
@@ -186,6 +187,7 @@ internal fun TerminalSettings(
                             modifier = Modifier.width(64.dp),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             autoFocus = false,
+                            textAlign = TextAlign.Center,
                         )
                         ChuButton(
                             onClick = {
