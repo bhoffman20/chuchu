@@ -299,6 +299,7 @@ fun TerminalScreen(
     var terminalFontSizeSp by remember {
         mutableStateOf(terminalPrefs.getFloat("terminal_font_size_sp", 14f).coerceAtLeast(0.1f))
     }
+    var showCustomActionsFab by remember { mutableStateOf(true) }
     val chuchuKeys =
         remember(vm, tabMode) {
             val isStrip = tabMode == TerminalTabMode.Strip
@@ -307,6 +308,8 @@ fun TerminalScreen(
                     listOf(
                         ChuchuHint(key = "t", description = if (isStrip) "tab manager" else "tabs"),
                         ChuchuHint(key = "n", description = "new tab"),
+                        ChuchuHint(key = "c", description = "toggle actions"),
+                        ChuchuHint(key = "s", description = "settings"),
                     ),
                 handlers =
                     mapOf(
@@ -323,6 +326,8 @@ fun TerminalScreen(
                                 vm.selectConnectionTab(ConnectionTab.Terminal)
                                 showTabSheet = false
                             },
+                        'c' to { showCustomActionsFab = !showCustomActionsFab },
+                        's' to { onOpenSettings() },
                     ),
             )
         }
@@ -1344,7 +1349,7 @@ fun TerminalScreen(
                                     },
                                 )
 
-                                if (currentTerminalCustomKeyGroups.isNotEmpty()) {
+                                if (currentTerminalCustomKeyGroups.isNotEmpty() && showCustomActionsFab) {
                                     TerminalCustomActionsFab(
                                         groups = currentTerminalCustomKeyGroups,
                                         onActionClick = { action ->
