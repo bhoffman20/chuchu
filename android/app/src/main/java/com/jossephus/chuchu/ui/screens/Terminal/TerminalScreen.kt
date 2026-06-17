@@ -298,7 +298,19 @@ fun TerminalScreen(
     var hasSeenTabsForHost by remember(hostId) { mutableStateOf(false) }
     var focusedTabIndex by remember { mutableStateOf(0) }
     var terminalFontSizeSp by remember {
-        mutableStateOf(settingsFontSize.coerceAtLeast(0.1f))
+        mutableStateOf(
+            settingsFontSize.coerceIn(
+                SettingsRepository.MIN_TERMINAL_FONT_SIZE,
+                SettingsRepository.MAX_TERMINAL_FONT_SIZE,
+            ),
+        )
+    }
+    LaunchedEffect(settingsFontSize) {
+        terminalFontSizeSp =
+            settingsFontSize.coerceIn(
+                SettingsRepository.MIN_TERMINAL_FONT_SIZE,
+                SettingsRepository.MAX_TERMINAL_FONT_SIZE,
+            )
     }
     var showCustomActionsFab by remember { mutableStateOf(true) }
     LaunchedEffect(settingsFontSize) {
