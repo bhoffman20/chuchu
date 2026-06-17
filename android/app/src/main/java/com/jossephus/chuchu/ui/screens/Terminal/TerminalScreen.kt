@@ -1472,7 +1472,9 @@ fun TerminalScreen(
                                     },
                                 )
 
-                                if (currentTerminalCustomKeyGroups.isNotEmpty() && showCustomActionsFab) {
+                                if (currentTerminalCustomKeyGroups.isNotEmpty() &&
+                                    (showCustomActionsFab || fabFilteredActions != null)
+                                ) {
                                     TerminalCustomActionsFab(
                                         groups = currentTerminalCustomKeyGroups,
                                         onActionClick = { action ->
