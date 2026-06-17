@@ -260,8 +260,6 @@ fun TerminalScreen(
     val screenInsetsModifier = modifier.windowInsetsPadding(WindowInsets.safeDrawing)
     var lastSessionStatus by remember { mutableStateOf<SessionStatus?>(null) }
     val settingsRepo = remember(context) { SettingsRepository.getInstance(context) }
-    val terminalPrefs =
-        remember(context) { context.getSharedPreferences("chuchu_terminal", Context.MODE_PRIVATE) }
     val currentTheme by settingsRepo.themeName.collectAsStateWithLifecycle()
     val themeMode by settingsRepo.themeMode.collectAsStateWithLifecycle()
     val lightThemeName by settingsRepo.lightThemeName.collectAsStateWithLifecycle()
@@ -275,6 +273,7 @@ fun TerminalScreen(
     val useSingleRowAccessoryBar by settingsRepo.accessoryBarSingleRow.collectAsStateWithLifecycle()
     val currentTerminalCustomKeyGroups by
         settingsRepo.terminalCustomKeyGroups.collectAsStateWithLifecycle()
+    val settingsFontSize by settingsRepo.terminalFontSize.collectAsStateWithLifecycle()
 
     val accessoryLayout =
         remember(currentAccessoryLayoutIds) {
@@ -297,7 +296,7 @@ fun TerminalScreen(
     var hasSeenTabsForHost by remember(hostId) { mutableStateOf(false) }
     var focusedTabIndex by remember { mutableStateOf(0) }
     var terminalFontSizeSp by remember {
-        mutableStateOf(terminalPrefs.getFloat("terminal_font_size_sp", 14f).coerceAtLeast(0.1f))
+        mutableStateOf(settingsFontSize.coerceAtLeast(0.1f))
     }
     val chuchuKeys =
         remember(vm, tabMode) {
@@ -329,7 +328,7 @@ fun TerminalScreen(
     val multiplexerState by vm.multiplexerState.collectAsStateWithLifecycle()
 
     LaunchedEffect(terminalFontSizeSp) {
-        terminalPrefs.edit().putFloat("terminal_font_size_sp", terminalFontSizeSp).apply()
+        settingsRepo.setTerminalFontSize(terminalFontSizeSp)
     }
 
     val hasTabsForHost =
