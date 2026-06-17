@@ -1397,6 +1397,43 @@ fun TerminalScreen(
                                                 .padding(end = 14.dp, bottom = 12.dp),
                                     )
                                 }
+
+                                androidx.compose.animation.AnimatedVisibility(
+                                    visible = chuchuKeys.isPrefixActive,
+                                    enter = fadeIn(),
+                                    exit = fadeOut(),
+                                    modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(),
+                                ) {
+                                    Row(
+                                        modifier =
+                                            Modifier.fillMaxWidth()
+                                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                                .background(colors.surface)
+                                                .border(1.dp, colors.border)
+                                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        ChuText(
+                                            "⌘",
+                                            style = typography.label,
+                                            color = colors.accent,
+                                            modifier = Modifier.width(24.dp),
+                                        )
+                                        FlowRow(
+                                            modifier = Modifier.weight(1f),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                                        ) {
+                                            chuchuKeys.hints().forEach { hint ->
+                                                ChuText(
+                                                    "${hint.key}: ${hint.description}",
+                                                    style = typography.labelSmall,
+                                                    color = colors.textSecondary,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
 
@@ -1412,41 +1449,6 @@ fun TerminalScreen(
                                         style = typography.labelSmall,
                                         color = colors.textMuted.copy(alpha = 0.7f),
                                     )
-                                }
-                            }
-                            AnimatedVisibility(
-                                visible = chuchuKeys.isPrefixActive,
-                                enter = fadeIn(),
-                                exit = fadeOut(),
-                            ) {
-                                Row(
-                                    modifier =
-                                        Modifier.fillMaxWidth()
-                                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                                            .background(colors.surface)
-                                            .border(1.dp, colors.border)
-                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    ChuText(
-                                        "⌘",
-                                        style = typography.label,
-                                        color = colors.accent,
-                                        modifier = Modifier.width(24.dp),
-                                    )
-                                    FlowRow(
-                                        modifier = Modifier.weight(1f),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                                    ) {
-                                        chuchuKeys.hints().forEach { hint ->
-                                            ChuText(
-                                                "${hint.key}: ${hint.description}",
-                                                style = typography.labelSmall,
-                                                color = colors.textSecondary,
-                                            )
-                                        }
-                                    }
                                 }
                             }
                             KeyboardAccessoryBar(
