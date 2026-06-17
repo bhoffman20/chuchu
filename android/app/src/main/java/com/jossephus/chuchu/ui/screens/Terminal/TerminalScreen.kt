@@ -363,6 +363,7 @@ fun TerminalScreen(
             val builtinHints = listOf(
                 ChuchuHint(key = "t", description = "tabs"),
                 ChuchuHint(key = "n", description = "new tab"),
+                ChuchuHint(key = "q", description = "close"),
                 ChuchuHint(key = "a", description = "actions"),
                 ChuchuHint(key = "s", description = "settings"),
             )
@@ -380,6 +381,10 @@ fun TerminalScreen(
                         vm.selectConnectionTab(ConnectionTab.Terminal)
                         showTabSheet = false
                     },
+                'q' to {
+                    val activeId = vm.activeTabId.value
+                    if (activeId != null) vm.closeTab(activeId)
+                },
                 'a' to { settingsRepo.setShowCustomActionsFab(!showCustomActionsFab) },
                 's' to { onOpenSettings() },
             )
