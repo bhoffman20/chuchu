@@ -1,6 +1,7 @@
 package com.jossephus.chuchu.ui.terminal
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -99,6 +100,31 @@ class TerminalCustomActionStoreTest {
             TerminalCustomActionStore.defaultGroups(),
             TerminalCustomActionStore.parse(null),
         )
+    }
+
+    @Test
+    fun `legacy delimited format migrates to JSON`() {
+        // Pre-JSON on-disk format: "keyLabel=label::payload|..." with no shortcut
+        // field. A payload containing "::" must survive (legacy split is on the
+        // first "::" only).
+        val legacy = "c=cout::std::cout << x|q:::q\ng=two::2"
+        val parsed = TerminalCustomActionStore.parse(legacy)
+        val expected =
+            TerminalCustomActionStore.normalize(
+                listOf(
+                    group(
+                        "c",
+                        TerminalCustomAction(label = "cout", payload = "std::cout << x"),
+                        TerminalCustomAction(label = "q", payload = ":q"),
+                    ),
+                    group("g", TerminalCustomAction(label = "two", payload = "2")),
+                ),
+            )
+        assertEquals(expected, parsed)
+        // Re-saving the migrated data writes JSON and still round-trips.
+        val reserialized = TerminalCustomActionStore.serialize(parsed)
+        assertTrue(reserialized.startsWith("["))
+        assertEquals(parsed, TerminalCustomActionStore.parse(reserialized))
     }
 
     @Test

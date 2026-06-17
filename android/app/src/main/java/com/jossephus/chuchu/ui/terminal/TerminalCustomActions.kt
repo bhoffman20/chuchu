@@ -125,10 +125,41 @@ object TerminalCustomActionStore {
                 TerminalCustomKeyGroup(keyLabel = keyLabel, actions = actions)
             }
         } catch (_: JSONException) {
-            return defaultGroups
+            // Migration: actions saved before the JSON switch used a delimited
+            // "keyLabel=label::payload|..." string. The shortcut field is new, so
+            // legacy entries never carried one — split on the first "::" only, which
+            // preserves any "::" inside the payload. Re-saving rewrites it as JSON.
+            parseLegacy(raw)
         }
 
         return normalize(parsed).ifEmpty { defaultGroups }
+    }
+
+    private fun parseLegacy(raw: String): List<TerminalCustomKeyGroup> {
+        return raw
+            .lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .mapNotNull { line ->
+                val keySplit = line.split("=", limit = 2)
+                if (keySplit.size != 2) return@mapNotNull null
+                val keyLabel = keySplit[0].trim()
+                val actionSection = keySplit[1]
+                if (keyLabel.isEmpty()) return@mapNotNull null
+                val actions = actionSection
+                    .split("|")
+                    .mapNotNull { actionToken ->
+                        val parts = actionToken.split("::", limit = 2)
+                        if (parts.size != 2) return@mapNotNull null
+                        val label = parts[0].trim()
+                        val payload = parts[1]
+                        if (label.isEmpty() || payload.isEmpty()) return@mapNotNull null
+                        TerminalCustomAction(label = label, payload = payload)
+                    }
+                if (actions.isEmpty()) return@mapNotNull null
+                TerminalCustomKeyGroup(keyLabel = keyLabel, actions = actions)
+            }
+            .toList()
     }
 
     fun serialize(groups: List<TerminalCustomKeyGroup>): String {
