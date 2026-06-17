@@ -15,10 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 class SettingsRepository(context: Context) {
 
     private val prefs: SharedPreferences =
-        context.getSharedPreferences("chuchu_settings", Context.MODE_PRIVATE).also {
-            // Removed in favor of font-size-driven column count; clean up stale value.
-            if (it.contains("terminal_columns")) it.edit().remove("terminal_columns").apply()
-        }
+        context.getSharedPreferences("chuchu_settings", Context.MODE_PRIVATE)
 
     private val _themeName = MutableStateFlow(prefs.getString(KEY_THEME, DEFAULT_THEME) ?: DEFAULT_THEME)
     val themeName: StateFlow<String> = _themeName.asStateFlow()
