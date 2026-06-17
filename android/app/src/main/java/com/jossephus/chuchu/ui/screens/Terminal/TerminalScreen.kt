@@ -301,6 +301,9 @@ fun TerminalScreen(
         mutableStateOf(settingsFontSize.coerceAtLeast(0.1f))
     }
     var showCustomActionsFab by remember { mutableStateOf(true) }
+    LaunchedEffect(settingsFontSize) {
+        terminalFontSizeSp = settingsFontSize.coerceAtLeast(0.1f)
+    }
     val chuchuKeys =
         remember(vm, tabMode) {
             val isStrip = tabMode == TerminalTabMode.Strip
@@ -1151,7 +1154,11 @@ fun TerminalScreen(
                                     onScroll = vm::onScroll,
                                     onZoom = { zoomFactor ->
                                         terminalFontSizeSp =
-                                            (terminalFontSizeSp * zoomFactor).coerceAtLeast(0.1f)
+                                            (terminalFontSizeSp * zoomFactor)
+                                                .coerceIn(
+                                                    SettingsRepository.MIN_TERMINAL_FONT_SIZE,
+                                                    SettingsRepository.MAX_TERMINAL_FONT_SIZE,
+                                                )
                                     },
                                     onSelectionChanged = { active, text, anchorX, anchorY ->
                                         hasSelectionActive = active

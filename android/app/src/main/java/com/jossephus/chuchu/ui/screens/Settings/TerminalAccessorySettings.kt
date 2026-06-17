@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.jossephus.chuchu.data.repository.SettingsRepository
 import com.jossephus.chuchu.ui.components.ChuButton
 import com.jossephus.chuchu.ui.components.ChuButtonVariant
 import com.jossephus.chuchu.ui.components.ChuCard
@@ -127,13 +128,13 @@ internal fun TerminalSettings(
                             onClick = {
                                 onTerminalFontSizeChanged(
                                     (currentTerminalFontSize.roundToInt() - 1)
-                                        .coerceAtLeast(MIN_TERMINAL_FONT_SIZE.toInt())
+                                        .coerceAtLeast(SettingsRepository.MIN_TERMINAL_FONT_SIZE.toInt())
                                         .toFloat(),
                                 )
                             },
                             variant = ChuButtonVariant.Outlined,
                             bracketed = true,
-                            enabled = currentTerminalFontSize.roundToInt() > MIN_TERMINAL_FONT_SIZE.toInt(),
+                            enabled = currentTerminalFontSize.roundToInt() > SettingsRepository.MIN_TERMINAL_FONT_SIZE.toInt(),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         ) {
                             ChuText("-", style = typography.label)
@@ -143,10 +144,13 @@ internal fun TerminalSettings(
                             onValueChange = { value ->
                                 val digits = value.filter { it.isDigit() }
                                 if (digits.isNotEmpty()) {
-                                    val parsed = digits.toIntOrNull() ?: MIN_TERMINAL_FONT_SIZE.toInt()
-                                    onTerminalFontSizeChanged(
-                                        parsed.coerceIn(MIN_TERMINAL_FONT_SIZE.toInt(), MAX_TERMINAL_FONT_SIZE.toInt()).toFloat(),
-                                    )
+                                val parsed = digits.toIntOrNull() ?: SettingsRepository.MIN_TERMINAL_FONT_SIZE.toInt()
+                                onTerminalFontSizeChanged(
+                                    parsed.coerceIn(
+                                        SettingsRepository.MIN_TERMINAL_FONT_SIZE.toInt(),
+                                        SettingsRepository.MAX_TERMINAL_FONT_SIZE.toInt(),
+                                    ).toFloat(),
+                                )
                                 }
                             },
                             label = "",
@@ -161,13 +165,13 @@ internal fun TerminalSettings(
                             onClick = {
                                 onTerminalFontSizeChanged(
                                     (currentTerminalFontSize.roundToInt() + 1)
-                                        .coerceAtMost(MAX_TERMINAL_FONT_SIZE.toInt())
+                                        .coerceAtMost(SettingsRepository.MAX_TERMINAL_FONT_SIZE.toInt())
                                         .toFloat(),
                                 )
                             },
                             variant = ChuButtonVariant.Outlined,
                             bracketed = true,
-                            enabled = currentTerminalFontSize.roundToInt() < MAX_TERMINAL_FONT_SIZE.toInt(),
+                            enabled = currentTerminalFontSize.roundToInt() < SettingsRepository.MAX_TERMINAL_FONT_SIZE.toInt(),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         ) {
                             ChuText("+", style = typography.label)
@@ -395,8 +399,7 @@ private fun tabModeLabel(mode: TerminalTabMode): String = when (mode) {
     TerminalTabMode.Strip -> "tab strip"
 }
 
-private const val MIN_TERMINAL_FONT_SIZE = 6f
-private const val MAX_TERMINAL_FONT_SIZE = 72f
+
 
 @Composable
 internal fun AccessoryLayoutEditorSheet(
