@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,6 +53,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 private const val INITIAL_REPEAT_DELAY_MS = 400L
 private const val REPEAT_INTERVAL_MS = 50L
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun KeyboardAccessoryBar(
 	line1Items: List<AccessoryKeyItem>,
@@ -103,36 +106,61 @@ fun KeyboardAccessoryBar(
 		return
 	}
 
-	Column(
-		modifier = modifier
-			.fillMaxWidth()
-			.padding(vertical = verticalPadding),
-		verticalArrangement = Arrangement.spacedBy(rowSpacing),
-	) {
-		Row(
-			modifier = Modifier.fillMaxWidth(),
-			horizontalArrangement = Arrangement.spacedBy(rowSpacing),
-			verticalAlignment = Alignment.CenterVertically,
+	if (compact) {
+		Column(
+			modifier = modifier
+				.fillMaxWidth()
+				.padding(vertical = verticalPadding),
+			verticalArrangement = Arrangement.spacedBy(rowSpacing),
 		) {
-			line1Items.forEach { item ->
-				AccessoryButton(
-					item = item,
-					modifierState = modifierState,
-					onAction = onAction,
-					chuchuKeyActive = chuchuKeyActive,
-					compact = compact,
-					buttonHeight = buttonHeight,
-					buttonPadding = buttonPadding,
-					modifier = Modifier.weight(1f),
-				)
+			Row(
+				modifier = Modifier.fillMaxWidth(),
+				horizontalArrangement = Arrangement.spacedBy(rowSpacing),
+				verticalAlignment = Alignment.CenterVertically,
+			) {
+				line1Items.forEach { item ->
+					AccessoryButton(
+						item = item,
+						modifierState = modifierState,
+						onAction = onAction,
+						chuchuKeyActive = chuchuKeyActive,
+						compact = compact,
+						buttonHeight = buttonHeight,
+						buttonPadding = buttonPadding,
+						modifier = Modifier.weight(1f),
+					)
+				}
+			}
+			Row(
+				modifier = Modifier.fillMaxWidth(),
+				horizontalArrangement = Arrangement.spacedBy(rowSpacing),
+				verticalAlignment = Alignment.CenterVertically,
+			) {
+				line2Items.forEach { item ->
+					AccessoryButton(
+						item = item,
+						modifierState = modifierState,
+						onAction = onAction,
+						chuchuKeyActive = chuchuKeyActive,
+						compact = compact,
+						buttonHeight = buttonHeight,
+						buttonPadding = buttonPadding,
+						modifier = Modifier.weight(1f),
+					)
+				}
 			}
 		}
-		Row(
-			modifier = Modifier.fillMaxWidth(),
+	} else {
+		val allItems = line1Items + line2Items
+		FlowRow(
+			modifier = modifier
+				.fillMaxWidth()
+				.padding(vertical = verticalPadding),
 			horizontalArrangement = Arrangement.spacedBy(rowSpacing),
-			verticalAlignment = Alignment.CenterVertically,
+			verticalArrangement = Arrangement.spacedBy(rowSpacing),
+			maxLines = 2,
 		) {
-			line2Items.forEach { item ->
+			allItems.forEach { item ->
 				AccessoryButton(
 					item = item,
 					modifierState = modifierState,
@@ -141,7 +169,7 @@ fun KeyboardAccessoryBar(
 					compact = compact,
 					buttonHeight = buttonHeight,
 					buttonPadding = buttonPadding,
-					modifier = Modifier.weight(1f),
+					modifier = Modifier,
 				)
 			}
 		}
