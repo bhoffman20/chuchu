@@ -345,7 +345,7 @@ fun TerminalScreen(
         remember(vm, tabMode, currentTerminalCustomKeyGroups) {
             val isStrip = tabMode == TerminalTabMode.Strip
             val builtinHints = listOf(
-                ChuchuHint(key = "t", description = if (isStrip) "tab manager" else "tabs"),
+                ChuchuHint(key = "t", description = "tabs"),
                 ChuchuHint(key = "n", description = "new tab"),
                 ChuchuHint(key = "a", description = "actions"),
                 ChuchuHint(key = "s", description = "settings"),
