@@ -63,6 +63,7 @@ import com.jossephus.chuchu.ui.components.ChuText
 import com.jossephus.chuchu.ui.components.ChuSwitch
 import com.jossephus.chuchu.ui.components.ChuTextField
 import com.jossephus.chuchu.ui.terminal.AccessoryKeyItem
+import com.jossephus.chuchu.ui.terminal.BuiltinCommand
 import com.jossephus.chuchu.ui.terminal.KeyboardAccessoryBar
 import com.jossephus.chuchu.ui.terminal.ModifierState
 import com.jossephus.chuchu.ui.terminal.TerminalAccessoryLayoutStore
@@ -430,32 +431,32 @@ internal fun TerminalSettings(
                     color = colors.textSecondary,
                 )
 
-                val builtinCommandLabels = listOf(
-                    Triple("tabs", "tabs", "show tab manager"),
-                    Triple("new_tab", "new tab", "open a new tab"),
-                    Triple("actions", "actions", "toggle floating custom actions button"),
-                    Triple("settings", "settings", "open settings"),
-                    Triple("close", "close", "close the active tab"),
-                )
-
-                builtinCommandLabels.forEach { (commandId, label, description) ->
+                BuiltinCommand.entries.forEach { command ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            ChuText(label, style = typography.label)
-                            ChuText(description, style = typography.bodySmall, color = colors.textMuted)
+                            ChuText(command.label, style = typography.label)
+                            ChuText(command.description, style = typography.bodySmall, color = colors.textMuted)
                         }
                         ChuTextField(
-                            value = builtinShortcuts[commandId] ?: "",
+                            value = builtinShortcuts[command.id] ?: "",
                             onValueChange = { updated ->
+                                val key = updated.takeLast(1)
                                 val newShortcuts = builtinShortcuts.toMutableMap()
-                                newShortcuts[commandId] = updated.takeLast(1)
+                                if (key.isNotEmpty()) {
+                                    // Keep each key bound to a single command: clear any
+                                    // other command currently using this key.
+                                    newShortcuts.entries
+                                        .filter { it.value == key && it.key != command.id }
+                                        .forEach { newShortcuts[it.key] = "" }
+                                }
+                                newShortcuts[command.id] = key
                                 onBuiltinShortcutsChanged(newShortcuts)
                             },
-                            label = label,
+                            label = command.label,
                             showLabel = false,
                             placeholder = "key",
                             singleLine = true,
