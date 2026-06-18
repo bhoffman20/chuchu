@@ -399,10 +399,21 @@ class NativeSshService(
         }
     }
 
-    override fun close() {
+    /** Close the SSH channel and socket, signal blockingRead to exit. */
+    fun shutdown() {
         if (handle == 0L) return
         bridge.nativeClose(handle)
+    }
+
+    /** Free the native session.  Call only after the read loop has exited. */
+    fun destroy() {
+        if (handle == 0L) return
         bridge.nativeDestroySession(handle)
         handle = 0L
+    }
+
+    override fun close() {
+        shutdown()
+        destroy()
     }
 }

@@ -342,6 +342,11 @@ class TerminalSessionRepository private constructor(application: Application) {
         _tabs.value.forEach { it.engine.setDefaultColors(fg, bg, cursor, palette) }
     }
 
+    /** Notify all session engines whether the app is in the foreground. */
+    fun setForeground(isForeground: Boolean) {
+        _tabs.value.forEach { it.engine.isForeground = isForeground }
+    }
+
     fun respondToHostKey(accepted: Boolean) {
         if (_preflightHostKeyPrompt.value != null) {
             preflightEngine?.respondToHostKey(accepted)

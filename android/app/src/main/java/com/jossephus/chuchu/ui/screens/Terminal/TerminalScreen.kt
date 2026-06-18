@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -295,6 +296,24 @@ fun TerminalScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val haptics = LocalHapticFeedback.current
+
+    // Notify the session engine when the app moves to/from the background so
+    // it can skip snapshot emission while not visible.
+    DisposableEffect(lifecycleOwner, vm) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_START -> vm.setForeground(true)
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> vm.setForeground(false)
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        // Initialise based on current state.
+        vm.setForeground(lifecycleOwner.lifecycle.currentState.isAtLeast(
+            androidx.lifecycle.Lifecycle.State.STARTED))
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val density = LocalDensity.current
     val colors = ChuColors.current
     val typography = ChuTypography.current
