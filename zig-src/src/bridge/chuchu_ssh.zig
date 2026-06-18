@@ -55,6 +55,12 @@ const NativeSshSession = struct {
     /// Set to true before tearing down the session; blockingRead checks this
     /// to bail out instead of accessing freed memory.
     shutdown: bool = false,
+    /// Serializes every libssh2 call on this session.  libssh2 is not
+    /// thread-safe for a single session, and the blocking read runs on a
+    /// different thread (Dispatchers.IO) than writes/resize (the session
+    /// dispatcher).  Held only around individual libssh2 calls — never across
+    /// the poll() wait — so a parked reader never blocks a write.
+    io_lock: std.Thread.Mutex = .{},
 };
 
 fn sessionFromHandle(handle: c.jlong) ?*NativeSshSession {
@@ -151,7 +157,12 @@ fn waitSocket(session: *NativeSshSession, timeout_ms: c_int) bool {
     const ssh_session = session.session orelse return false;
     if (session.socket_fd < 0) return false;
 
+    // block_directions reads libssh2 transport state, so it must be serialized
+    // with reads/writes — but the poll() below must NOT hold the lock, or a
+    // parked reader would block writes.
+    session.io_lock.lock();
     const directions = c.libssh2_session_block_directions(ssh_session);
+    session.io_lock.unlock();
     var events: c_short = 0;
     if ((directions & c.LIBSSH2_SESSION_BLOCK_INBOUND) != 0) {
         events |= c.POLLIN;
@@ -446,7 +457,9 @@ fn writeChannel(session: *NativeSshSession, bytes: []const u8) c.jint {
     var stalled_loops: u32 = 0;
     while (total_written < bytes.len) {
         const chunk = bytes[total_written..];
+        session.io_lock.lock();
         const rc = c.libssh2_channel_write_ex(channel, 0, @ptrCast(chunk.ptr), @intCast(chunk.len));
+        session.io_lock.unlock();
         if (rc == c.LIBSSH2_ERROR_EAGAIN or rc == 0) {
             stalled_loops +%= 1;
             if (stalled_loops > 64) {
@@ -479,7 +492,9 @@ fn readChannel(alloc: std.mem.Allocator, session: *NativeSshSession, max_bytes: 
     for (streams) |stream_id| {
         while (true) {
             if (total_read >= buf.len) break;
+            session.io_lock.lock();
             const rc = c.libssh2_channel_read_ex(channel, stream_id, @ptrCast(buf.ptr + total_read), @intCast(buf.len - total_read));
+            session.io_lock.unlock();
             if (rc == c.LIBSSH2_ERROR_EAGAIN) {
                 session.empty_reads +%= 1;
                 break;
@@ -535,7 +550,9 @@ fn blockingReadChannel(alloc: std.mem.Allocator, session: *NativeSshSession, max
             while (true) {
                 if (total_read >= buf.len) break;
                 if (session.shutdown) return null;
+                session.io_lock.lock();
                 const rc = c.libssh2_channel_read_ex(channel, stream_id, @ptrCast(buf.ptr + total_read), @intCast(buf.len - total_read));
+                session.io_lock.unlock();
                 if (rc == c.LIBSSH2_ERROR_EAGAIN) {
                     break;
                 }
@@ -1170,7 +1187,9 @@ export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeResize(env
     const session = sessionFromHandle(handle) orelse return c.JNI_FALSE;
     const channel = session.channel orelse return c.JNI_FALSE;
     while (true) {
+        session.io_lock.lock();
         const rc = c.libssh2_channel_request_pty_size_ex(channel, cols, rows, width_px, height_px);
+        session.io_lock.unlock();
         if (rc == 0) return c.JNI_TRUE;
         if (rc != c.LIBSSH2_ERROR_EAGAIN) {
             setLibssh2Error(session, "PTY resize failed", rc);
@@ -1257,31 +1276,17 @@ export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeClose(env:
     _ = env;
     _ = thiz;
     const session = sessionFromHandle(handle) orelse return;
-    // Signal any in-flight blockingRead to bail out before we tear down.
+    // Interrupt only — do NOT free libssh2 state here.  The read loop may still
+    // be running blockingRead on another thread; freeing the channel/session now
+    // would be a use-after-free.  We signal shutdown and break the poll() by
+    // shutting down the socket; nativeDestroySession does the actual teardown
+    // once Kotlin has joined the read loop.
     session.shutdown = true;
-    // Best-effort SFTP teardown: even if it stalls (e.g. the peer is gone), we
-    // must still free the channel, session, and socket below. libssh2_session_free
-    // releases any remaining SFTP state, so a stalled shutdown is not fatal here.
-    if (session.upload_handle) |upload_handle| {
-        _ = closeSftpHandle(session, upload_handle, "native close upload handle");
-        session.upload_handle = null;
+    if (session.socket_fd >= 0) {
+        // SHUT_RDWR wakes a parked poll() (POLLHUP) without invalidating the fd,
+        // so an in-flight blockingRead returns promptly and sees `shutdown`.
+        _ = c.shutdown(session.socket_fd, c.SHUT_RDWR);
     }
-    if (session.sftp) |sftp| {
-        _ = shutdownSftp(session, sftp, "native close");
-        session.sftp = null;
-    }
-    if (session.channel) |channel| {
-        _ = c.libssh2_channel_close(channel);
-        _ = c.libssh2_channel_free(channel);
-        session.channel = null;
-    }
-    if (session.session) |ssh_session| {
-        _ = c.libssh2_session_disconnect_ex(ssh_session, c.SSH_DISCONNECT_BY_APPLICATION, "bye", "en");
-        _ = c.libssh2_session_free(ssh_session);
-        session.session = null;
-    }
-    closeSocket(session.socket_fd);
-    session.socket_fd = -1;
 }
 
 export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeSftpInit(env: *c.JNIEnv, thiz: c.jobject, handle: c.jlong) callconv(.c) c.jboolean {
