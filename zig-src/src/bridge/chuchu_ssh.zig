@@ -52,6 +52,9 @@ const NativeSshSession = struct {
     hostkey_copy: ?[]u8 = null,
     last_error: std.ArrayListUnmanaged(u8) = .empty,
     empty_reads: u32 = 0,
+    /// Set to true before tearing down the session; blockingRead checks this
+    /// to bail out instead of accessing freed memory.
+    shutdown: bool = false,
 };
 
 fn sessionFromHandle(handle: c.jlong) ?*NativeSshSession {
@@ -502,6 +505,7 @@ fn readChannel(alloc: std.mem.Allocator, session: *NativeSshSession, max_bytes: 
 /// the timeout expires.  This lets the kernel put the thread to sleep (like a
 /// local-PTY read) instead of busy-polling from Kotlin.
 fn blockingReadChannel(alloc: std.mem.Allocator, session: *NativeSshSession, max_bytes: usize, timeout_ms: c_int) ?[]u8 {
+    if (session.shutdown) return null;
     const channel = session.channel orelse return null;
 
     // Loop: poll → read.  libssh2 may return EAGAIN even after poll says the
@@ -509,12 +513,16 @@ fn blockingReadChannel(alloc: std.mem.Allocator, session: *NativeSshSession, max
     // times before giving up.
     var remaining = timeout_ms;
     while (remaining > 0) {
+        if (session.shutdown) return null;
         const start = nowMs();
         if (!waitSocket(session, @min(remaining, 500))) {
             // Socket not ready within this slice — check if it was a timeout
             // or an error.  poll() returns 0 on timeout, <0 on error.
             break;
         }
+        // Re-check after poll() returns — the socket may have been closed
+        // during shutdown while we were sleeping.
+        if (session.shutdown) return null;
         const elapsed: c_int = @intCast(@max(nowMs() - start, 0));
         remaining -= @min(elapsed, remaining);
 
@@ -526,6 +534,7 @@ fn blockingReadChannel(alloc: std.mem.Allocator, session: *NativeSshSession, max
         for (streams) |stream_id| {
             while (true) {
                 if (total_read >= buf.len) break;
+                if (session.shutdown) return null;
                 const rc = c.libssh2_channel_read_ex(channel, stream_id, @ptrCast(buf.ptr + total_read), @intCast(buf.len - total_read));
                 if (rc == c.LIBSSH2_ERROR_EAGAIN) {
                     break;
@@ -1248,6 +1257,8 @@ export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeClose(env:
     _ = env;
     _ = thiz;
     const session = sessionFromHandle(handle) orelse return;
+    // Signal any in-flight blockingRead to bail out before we tear down.
+    session.shutdown = true;
     // Best-effort SFTP teardown: even if it stalls (e.g. the peer is gone), we
     // must still free the channel, session, and socket below. libssh2_session_free
     // releases any remaining SFTP state, so a stalled shutdown is not fatal here.

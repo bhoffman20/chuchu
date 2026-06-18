@@ -20,6 +20,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -101,6 +102,9 @@ class TerminalSessionEngine(
             }
             .asCoroutineDispatcher()
     @Volatile private var disposed = false
+
+    /** When false, skip snapshot emission to save CPU while backgrounded. */
+    @Volatile var isForeground: Boolean = true
 
     private val bridge = GhosttyBridge()
     private val nativeSsh = NativeSshService(hostKeyPolicy = ::verifyHostKey)
@@ -530,10 +534,15 @@ class TerminalSessionEngine(
         lastConnectionParams = null
         cancelHostKeyPrompt()
         scope.launch(dispatcher) {
-            readJob?.cancel()
-            readJob = null
-            nativeSsh.close()
+            // Signal the read loop to exit by closing the SSH channel/socket.
+            // The native shutdown flag + socket close will interrupt blockingRead().
+            nativeSsh.shutdown()
             moshService.close()
+            // Wait for the read loop to notice the shutdown and exit before
+            // we free the native session memory.
+            readJob?.cancelAndJoin()
+            readJob = null
+            nativeSsh.destroy()
             if (handle != 0L) {
                 bridge.nativeDestroy(handle)
                 handle = 0L
@@ -635,6 +644,10 @@ class TerminalSessionEngine(
                 continue
             }
             if (handle == 0L) continue
+            // When backgrounded, still drain the SSH channel (prevents
+            // buffer overflow and keeps the connection alive) but skip the
+            // expensive terminal-parsing and snapshot work.
+            if (!isForeground) continue
             val wasImageLoading = bridge.nativeIsImageLoading(handle)
             flushPtyWrites()
             bridge.nativeWriteRemote(handle, chunk)
@@ -1108,6 +1121,10 @@ class TerminalSessionEngine(
 
     private fun requestSnapshot(force: Boolean = false) {
         if (handle == 0L) return
+        // Skip snapshot emission while backgrounded — the native terminal
+        // state is still updated by writeRemote(), but we avoid Kotlin allocs
+        // and StateFlow churn that burn CPU for no visible benefit.
+        if (!isForeground) return
         val now = System.currentTimeMillis()
         val elapsed = now - lastSnapshotAtMs
         if (force || elapsed >= snapshotIntervalMs) {
@@ -1123,6 +1140,7 @@ class TerminalSessionEngine(
             delay(waitMs)
             snapshotScheduled = false
             if (handle == 0L) return@launch
+            if (!isForeground) return@launch
             emitSnapshot()
             lastSnapshotAtMs = System.currentTimeMillis()
         }

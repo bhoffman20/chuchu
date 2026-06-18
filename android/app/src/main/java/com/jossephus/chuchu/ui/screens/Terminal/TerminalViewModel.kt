@@ -85,6 +85,11 @@ class TerminalViewModel(application: Application) : AndroidViewModel(application
         sessionRepository.attachClient()
     }
 
+    /** Called from the UI when the lifecycle foreground state changes. */
+    fun setForeground(isForeground: Boolean) {
+        sessionRepository.setForeground(isForeground)
+    }
+
     private val _connectionTabByTab = MutableStateFlow<Map<String, ConnectionTab>>(emptyMap())
     private val _fileBrowserStateByTab =
         MutableStateFlow<Map<String, FileBrowserUiState>>(emptyMap())
