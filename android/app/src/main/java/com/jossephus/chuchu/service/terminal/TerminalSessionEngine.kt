@@ -635,28 +635,14 @@ class TerminalSessionEngine(
         // read in termux).  The IO dispatcher keeps the session dispatcher
         // free for resize / write / snapshot operations.
         while (currentCoroutineContext().isActive) {
-            // When backgrounded, stay on the IO thread and just drain the
-            // SSH channel without dispatching back to the session thread.
-            // This eliminates the IO→session→IO round-trip overhead.
-            if (!isForeground) {
-                withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    while (!isForeground && currentCoroutineContext().isActive) {
-                        val chunk = nativeSsh.blockingRead(maxBytes = 65536, timeoutMs = 1000)
-                        if (chunk == null) return@withContext
-                        if (chunk.isEmpty()) continue
-                        // Still feed data to the terminal emulator so it can
-                        // respond to protocol queries (cursor position, etc.)
-                        // and maintain correct state.  Just skip snapshots.
-                        if (handle != 0L) {
-                            flushPtyWrites()
-                            bridge.nativeWriteRemote(handle, chunk)
-                            flushPtyWrites()
-                        }
-                    }
-                }
-                // isForeground changed — loop back to foreground path.
-                continue
-            }
+            // Only the blocking read runs on Dispatchers.IO; everything that
+            // touches the ghostty handle or the SSH channel (nativeWriteRemote,
+            // flushPtyWrites) stays on the session dispatcher so it never races
+            // with resize/write coroutines.  When backgrounded we still feed the
+            // emulator (so it answers protocol queries and keeps state) — only
+            // snapshot emission is skipped, via requestSnapshot()/the !isForeground
+            // guards below.  The IO→session hop is negligible when backgrounded
+            // (little data, no rendering), so correctness wins over saving it.
             val chunk = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 nativeSsh.blockingRead(maxBytes = 65536, timeoutMs = 1000)
             }
@@ -755,11 +741,19 @@ class TerminalSessionEngine(
     }
 
     private suspend fun establishConnection(params: ConnectionParams, username: String) {
+        // Tear down any previous session safely.  A blocking read may still be
+        // in flight on Dispatchers.IO (e.g. when reconnecting after a resize
+        // failure), so interrupt the poll, join the read loop, and only then
+        // free the native SSH session and ghostty handle — both of which the
+        // read loop dereferences.
+        nativeSsh.shutdown()
+        readJob?.cancelAndJoin()
+        readJob = null
+        nativeSsh.destroy()
         if (handle != 0L) {
             bridge.nativeDestroy(handle)
             handle = 0L
         }
-        nativeSsh.close()
         moshService.close()
         handle = bridge.nativeCreate(cols, rows, 1000)
         applyTerminalOptions()
@@ -980,7 +974,11 @@ class TerminalSessionEngine(
         if (reconnectJob?.isActive == true) return
         reconnectJob =
             scope.launch(dispatcher) {
-                readJob?.cancel()
+                // Join (not just cancel) the read loop: a blocking read may be
+                // in flight on Dispatchers.IO, and establishConnection() will
+                // free the native session it dereferences.
+                nativeSsh.shutdown()
+                readJob?.cancelAndJoin()
                 readJob = null
                 var attempt = 0
                 while (currentCoroutineContext().isActive && !disconnectRequested) {
