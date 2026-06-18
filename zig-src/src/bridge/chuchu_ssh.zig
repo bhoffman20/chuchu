@@ -498,6 +498,58 @@ fn readChannel(alloc: std.mem.Allocator, session: *NativeSshSession, max_bytes: 
     return alloc.dupe(u8, buf[0..total_read]) catch null;
 }
 
+/// Blocking read: waits on the socket via poll() until data is available or
+/// the timeout expires.  This lets the kernel put the thread to sleep (like a
+/// local-PTY read) instead of busy-polling from Kotlin.
+fn blockingReadChannel(alloc: std.mem.Allocator, session: *NativeSshSession, max_bytes: usize, timeout_ms: c_int) ?[]u8 {
+    const channel = session.channel orelse return null;
+
+    // Loop: poll → read.  libssh2 may return EAGAIN even after poll says the
+    // socket is readable (SSH protocol framing overhead), so we retry a few
+    // times before giving up.
+    var remaining = timeout_ms;
+    while (remaining > 0) {
+        const start = nowMs();
+        if (!waitSocket(session, @min(remaining, 500))) {
+            // Socket not ready within this slice — check if it was a timeout
+            // or an error.  poll() returns 0 on timeout, <0 on error.
+            break;
+        }
+        const elapsed: c_int = @intCast(@max(nowMs() - start, 0));
+        remaining -= @min(elapsed, remaining);
+
+        const cap = @max(max_bytes, 1);
+        const buf = alloc.alloc(u8, cap) catch return null;
+        defer alloc.free(buf);
+        var total_read: usize = 0;
+        const streams = [_]c_int{ 0, 1 };
+        for (streams) |stream_id| {
+            while (true) {
+                if (total_read >= buf.len) break;
+                const rc = c.libssh2_channel_read_ex(channel, stream_id, @ptrCast(buf.ptr + total_read), @intCast(buf.len - total_read));
+                if (rc == c.LIBSSH2_ERROR_EAGAIN) {
+                    break;
+                }
+                if (rc == 0) {
+                    break;
+                }
+                if (rc < 0) {
+                    setLibssh2Error(session, "Read failed", @intCast(rc));
+                    return null;
+                }
+                total_read += @intCast(rc);
+            }
+        }
+        if (total_read > 0) {
+            return alloc.dupe(u8, buf[0..total_read]) catch null;
+        }
+        // EAGAIN on both streams — loop back to poll.
+    }
+
+    // Timed out with no data.
+    return alloc.dupe(u8, &.{}) catch null;
+}
+
 fn readJByteArray(env: *c.JNIEnv, array: c.jbyteArray) ?[]u8 {
     if (array == null) return null;
     const len = env.*.*.GetArrayLength.?(env, array);
@@ -1168,6 +1220,28 @@ export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeIpcExchang
     }
 
     return jniNewByteArrayOrNull(env, response.items);
+}
+
+/// Blocking read: blocks in poll() until data arrives or timeout_ms expires.
+/// Returns a byte[] with data, or an empty byte[] on timeout.  Returns null
+/// on session error (handle invalid, channel closed, etc.).
+export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeBlockingRead(
+    env: *c.JNIEnv,
+    thiz: c.jobject,
+    handle: c.jlong,
+    max_bytes: c.jint,
+    timeout_ms: c.jint,
+) callconv(.c) c.jbyteArray {
+    _ = thiz;
+    const session = sessionFromHandle(handle) orelse return null;
+    const bytes = blockingReadChannel(
+        allocator,
+        session,
+        @intCast(@max(max_bytes, 1)),
+        @intCast(@max(timeout_ms, 0)),
+    ) orelse return null;
+    defer allocator.free(bytes);
+    return jniNewByteArrayOrNull(env, bytes);
 }
 
 export fn Java_com_jossephus_chuchu_service_ssh_NativeSshBridge_nativeClose(env: *c.JNIEnv, thiz: c.jobject, handle: c.jlong) callconv(.c) void {

@@ -73,6 +73,13 @@ class NativeSshBridge {
 
     external fun nativeIpcExchange(handle: Long, request: ByteArray): ByteArray?
 
+    /**
+     * Blocking read: sleeps in poll() until data arrives or [timeoutMs] expires.
+     * Returns data bytes, or an empty ByteArray on timeout.  Returns null on
+     * session error (invalid handle, channel closed, etc.).
+     */
+    external fun nativeBlockingRead(handle: Long, maxBytes: Int, timeoutMs: Int): ByteArray?
+
     external fun nativeSftpInit(handle: Long): Boolean
 
     external fun nativeSftpListDirectory(handle: Long, path: String): Array<String>?

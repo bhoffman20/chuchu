@@ -23,6 +23,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -620,20 +621,22 @@ class TerminalSessionEngine(
     }
 
     private suspend fun startSshReadLoop() {
-        val buf = ByteArray(65536)
-        var lastActivityMs = System.currentTimeMillis()
+        // Use blocking read on an IO thread: the native thread sleeps in
+        // poll() until data arrives, consuming zero CPU (like a local-PTY
+        // read in termux).  The IO dispatcher keeps the session dispatcher
+        // free for resize / write / snapshot operations.
         while (currentCoroutineContext().isActive) {
-            val chunk = nativeSsh.read(buf.size)
+            val chunk = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                nativeSsh.blockingRead(maxBytes = 65536, timeoutMs = 1000)
+            }
             if (chunk == null) {
                 break
             }
             if (chunk.isEmpty()) {
-                // Adaptive poll: stay snappy while data is flowing, back off when
-                // idle so a quiet session doesn't spin at 500 wakeups/sec.
-                delay(idleReadDelayMs(System.currentTimeMillis() - lastActivityMs))
+                // Timeout — no data.  Loop back to poll; also re-check
+                // coroutine liveness so dispose/cancel is prompt.
                 continue
             }
-            lastActivityMs = System.currentTimeMillis()
             if (handle == 0L) continue
             val wasImageLoading = bridge.nativeIsImageLoading(handle)
             flushPtyWrites()
@@ -1089,24 +1092,27 @@ class TerminalSessionEngine(
 
     private companion object {
         // Idle thresholds and the poll delay for each tier.
+        // While data is flowing the loop stays snappy (2 ms).  As the session
+        // goes quiet the delay ramps up so an idle terminal doesn't burn CPU.
+        // The first byte after idle restores MIN within one MAX interval.
         private const val ACTIVE_WINDOW_MS = 50L
         private const val NEAR_IDLE_WINDOW_MS = 500L
         private const val IDLE_WINDOW_MS = 3_000L
+        private const val DEEP_IDLE_WINDOW_MS = 10_000L
         private const val MIN_READ_DELAY_MS = 2L
         private const val NEAR_IDLE_DELAY_MS = 8L
         private const val IDLE_DELAY_MS = 24L
-        private const val MAX_READ_DELAY_MS = 64L
+        private const val DEEP_IDLE_DELAY_MS = 64L
+        private const val MAX_READ_DELAY_MS = 500L
     }
 
-    // Read-loop poll interval as a function of how long the session has been idle:
-    // MIN while data is flowing (snappy echo), ramping to MAX once quiet so an idle
-    // terminal stops spinning. The first byte after idle restores MIN within one
-    // MAX interval.
+    // Read-loop poll interval as a function of how long the session has been idle.
     private fun idleReadDelayMs(idleForMs: Long): Long =
         when {
             idleForMs < ACTIVE_WINDOW_MS -> MIN_READ_DELAY_MS
             idleForMs < NEAR_IDLE_WINDOW_MS -> NEAR_IDLE_DELAY_MS
             idleForMs < IDLE_WINDOW_MS -> IDLE_DELAY_MS
+            idleForMs < DEEP_IDLE_WINDOW_MS -> DEEP_IDLE_DELAY_MS
             else -> MAX_READ_DELAY_MS
         }
 

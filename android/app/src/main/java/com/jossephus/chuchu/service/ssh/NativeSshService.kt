@@ -284,6 +284,16 @@ class NativeSshService(
         }
     }
 
+    /**
+     * Blocking read: the native thread sleeps in poll() until data arrives or
+     * [timeoutMs] expires.  Returns data bytes, an empty ByteArray on timeout,
+     * or null on session error.
+     */
+    fun blockingRead(maxBytes: Int = 65536, timeoutMs: Int = 1000): ByteArray? {
+        if (handle == 0L) return null
+        return bridge.nativeBlockingRead(handle, maxBytes, timeoutMs)
+    }
+
     fun sftpListDirectory(path: String): List<String> {
         check(handle != 0L) { "Not connected" }
         if (!bridge.nativeSftpInit(handle)) {
