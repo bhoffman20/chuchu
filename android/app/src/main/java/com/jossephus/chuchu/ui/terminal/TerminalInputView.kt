@@ -147,8 +147,7 @@ class TerminalInputView(context: Context) : EditText(context) {
                 EditorInfo.IME_ACTION_NONE
         inputType = android.text.InputType.TYPE_CLASS_TEXT or
             android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-            android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
-            android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
     }
 
     override fun onCheckIsTextEditor(): Boolean = true
@@ -210,8 +209,7 @@ class TerminalInputView(context: Context) : EditText(context) {
             EditorInfo.IME_ACTION_NONE
         outAttrs.inputType = android.text.InputType.TYPE_CLASS_TEXT or
             android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-            android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
-            android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
         outAttrs.initialSelStart = selectionStart
         outAttrs.initialSelEnd = selectionEnd
 
